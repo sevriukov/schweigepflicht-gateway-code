@@ -49,7 +49,7 @@ SKIP_FILES = {"CLAUDE.md", "README.md", "LIESMICH.md"}
 
 
 def xlsx_text(f):
-    """Таблица Excel -> текст: каждый лист заголовком «## Blatt: …», строки -- через запятую, как CSV (дело Gewerbe 16.10.2026: выгрузка
+    """Таблица Excel -> текст: каждый лист заголовком «## Blatt: …», строки -- через запятую, как CSV (имитация дела Б 16.10.2026: выгрузка
     бухгалтерии и журнал поездок лежали только в .xlsx, сборка их не видела)."""
     import csv
     import io
@@ -144,7 +144,7 @@ KOPF = ("Sammlung kurzer Notizen und Sprachnachrichten aus den Unterlagen des Fa
 
 
 def aufraeumen(case, docs):
-    """Промежуточный текст документа, подлинник которого убран из папки дела, удаляется (дело Gewerbe 16.10.2026: файл, исключённый из дела,
+    """Промежуточный текст документа, подлинник которого убран из папки дела, удаляется (имитация дела Б 16.10.2026: файл, исключённый из дела,
     продолжал попадать в лист из кэша roh/ и docs/). Удаляются только файлы вида «<имя подлинника>.<расширение>.txt»; сборные и служебные остаются."""
     ext = AUDIO + TEXT + (".docx", ".xlsx", ".xlsm", ".pdf", ".jpg", ".jpeg", ".png")
     da = {safe(case, f) + ".txt" for f in files(case, ext)}
@@ -332,7 +332,7 @@ def build(case, frage):
             probe = [r[-1] for r in t["rows"] if r and r[-1] in ("ja", "nein")]
             tb.append(f"{t['name']}: {len(t['rows'])}" + (f" / сходится {probe.count('ja')} из {len(probe)}" if probe else (" / контрольная сумма есть" if t.get("control_sum") is not None else "")))
         L.append(f"| {d['nr']} | {d['kind'][:60]} | {d['issuer_role']} | {d['pages']} | {int(100 * d['ocr_quality'])} % | {'; '.join(tb) or '—'} | {len(d['text'])} |")
-    # документ вошёл не целиком: меток страниц в тексте листа меньше, чем страниц в документе (обкатка Salon 11.10.2026: три документа молча вошли одной страницей)
+    # документ вошёл не целиком: меток страниц в тексте листа меньше, чем страниц в документе (имитация дела А 11.10.2026: три документа молча вошли одной страницей)
     kurz = [(d["nr"], d["pages"], d["text"].count("--- Seite"), len(d["text"])) for d in sheet["documents"]
             if d["pages"] > 1 and d["text"].count("--- Seite") < d["pages"] and d["text"] != "(siehe Tabelle)"]
     if kurz:
@@ -384,7 +384,7 @@ def release(case, code):
         raise SystemExit(f"Контроль перед передачей нашёл совпадения с подлинными данными ({len(bad)}). Передача отменена.\n"
                          "  Настоящий пропуск: python3 anon_paket.py <папка> --merke \"слово1;слово2\" [--art Person|Firma|Ort|Nummer] и повторить сборку.\n"
                          "  Ложное срабатывание (обычное слово совпало с частью имени): повторить передачу с ключом --trotzdem -- решение человека, пишется в журнал.")
-    import sekretaer                                     # третья ступень (замечание Сергея к шагу 8, 09.10.2026): подтверждённые имена дела с допуском на искажение
+    import sekretaer                                     # третья ступень (решение автора к шагу 8, 09.10.2026): подтверждённые имена дела с допуском на искажение
     rs = sekretaer.reste(case)
     if rs and "--trotzdem" not in sys.argv:
         raise SystemExit(f"Третья ступень контроля нашла остатки имён дела ({len(rs)}): " + "; ".join(f"документ № {n}, стр. {se}: {ar}; {kl} ({fo})" for n, se, ar, kl, fo in rs[:12]) +
@@ -420,7 +420,7 @@ def main():
         terms = [t for t in sys.argv[sys.argv.index("--merke") + 1].split(";") if t.strip()]
         art = sys.argv[sys.argv.index("--art") + 1] if "--art" in sys.argv else "Person"
         n = anonymizer.learn(terms, art, "")
-        # что именно закроет правка (замечание Salon 11.10.2026): номер документа и число мест, без самого слова
+        # что именно закроет правка (имитация дела А 11.10.2026): номер документа и число мест, без самого слова
         sf = case / "_pipeline" / "austausch.json"
         if sf.exists():
             sheet = json.load(open(sf, encoding="utf-8"))

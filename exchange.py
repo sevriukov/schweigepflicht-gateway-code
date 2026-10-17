@@ -95,7 +95,7 @@ SEITEN_KOPF = ("# Сомнительные страницы: распознав�
 
 
 def seiten_entscheid(docs_dir, neu=None):
-    """Три уровня текста (решение Сергея 09.10.2026): основной / вспомогательный с пометкой / не выводится. Знак по каждой сомнительной
+    """Три уровня текста (решение автора 09.10.2026): основной / вспомогательный с пометкой / не выводится. Знак по каждой сомнительной
     странице ставит аудитор в <дело>/_pipeline/SEITEN_ENTSCHEID.txt. neu -- {имя текста: [страницы]}: недостающие строки дописываются
     со знаком x. -> {имя текста: {страница: знак}}"""
     f = Path(docs_dir).parent / "SEITEN_ENTSCHEID.txt"
@@ -115,7 +115,7 @@ def seiten_entscheid(docs_dir, neu=None):
 
 
 def entmuellen(text, seiten=None, schwach=300, anteil=0.4, entscheid=None):
-    """Нечитаемое в лист не выводится (решение Сергея 09.10.2026): в мусоре распознавания прячутся обрывки имён и адресов,
+    """Нечитаемое в лист не выводится (решение автора 09.10.2026): в мусоре распознавания прячутся обрывки имён и адресов,
     которых не ловят ни список замен, ни признаки. Страница, которую распознаватель оценил как почти не прочитанную, заменяется
     строкой «nicht gelesen»; строка, где словарных слов меньше доли `anteil`, -- тоже. Строки с числами и короткие строки остаются.
     -> (текст, число убранных страниц, число убранных строк)"""
@@ -202,7 +202,7 @@ def entmuellen(text, seiten=None, schwach=300, anteil=0.4, entscheid=None):
                 for i in voll[:ende]:
                     if any(fuzz.ratio(norm(zl[i]), a) >= 85 for a in kopf_z):
                         continue                          # строка шапки прочитана чисто (испорчена соседняя) -- остаётся
-                    # нормально прочитанный верх страницы не страдает (решение Сергея 09.10.2026): строка уходит, только если в ней узнаётся
+                    # нормально прочитанный верх страницы не страдает (решение автора 09.10.2026): строка уходит, только если в ней узнаётся
                     # испорченный кусок шапки либо она не читается по словарю; обычный текст в начале страницы остаётся
                     nl = norm(zl[i])
                     stueck = any(fuzz.partial_ratio(nl, a) >= 70 or fuzz.partial_ratio(a, nl) >= 70 for a in kopf_z if len(a) >= 8) if len(nl) >= 8 else False
@@ -221,7 +221,7 @@ def entmuellen(text, seiten=None, schwach=300, anteil=0.4, entscheid=None):
 
 
 def classify(text):
-    # пачка писем электронной почты (стенд Salon 12.10.2026: 86 страниц переписки определялись как «Rechnung», потому что в темах писем стояло
+    # пачка писем электронной почты (имитация дела А 12.10.2026: 86 страниц переписки определялись как «Rechnung», потому что в темах писем стояло
     # «Rechnung Nr. …»): много строк-заголовков почты -> переписка; кто выдал -- по тексту не установить, ставит обработчик в KORREKTUR.txt
     if len(re.findall(r"(?mi)^\s*(?:Von|From|Gesendet|Betreff|Subject|An|To|От|Кому|Тема)\s*:", text)) >= 12:
         return "Korrespondenz", "unbekannt"
@@ -352,7 +352,7 @@ def clean(t, limit=None):
     """limit -- сколько знаков документа идёт в обменный лист. По умолчанию 9000 (лист для внешней модели с ограничением объёма);
     полный текст -- переменная окружения LM_DOC_LIMIT (её ставит anon_paket.py: работа с обезличенным листом вместо подлинников)."""
     limit = limit or int(__import__("os").environ.get("LM_DOC_LIMIT", "9000"))
-    # строка-дата («Musterstadt, 17.02.2025») и строка-заголовок из одного словарного слова («Beitragseinstufung 2021») остаются (стенд Salon 12.10.2026:
+    # строка-дата («Musterstadt, 17.02.2025») и строка-заголовок из одного словарного слова («Beitragseinstufung 2021») остаются (имитация дела А 12.10.2026:
     # дата и заголовок ключевого письма выпадали, потому что в строке меньше двух слов)
     W = wortliste()
     L = [l.strip() for l in t.split("\n") if len(WORD.findall(l)) >= 2 or re.search(r"\d+[.,]\d{2}", l) or l.startswith("---")
@@ -379,7 +379,7 @@ def kennungen_rest(anon, mp):
             mp[ph] = val
         return ph
     anon = re.sub(r"\b((?:EREF|MREF|KREF|CRED)[:+]\s*)([A-Z0-9][A-Z0-9.\-]{5,})", lambda m: m.group(1) + neu(m.group(2)), anon)
-    # буквы любого алфавита: распознавание ставит в номер счёта кириллическую букву вместо латинской (стенд Salon 12.10.2026)
+    # буквы любого алфавита: распознавание ставит в номер счёта кириллическую букву вместо латинской (имитация дела А 12.10.2026)
     anon = re.sub(r"(?<![\w\[.,])[\w.\-/]*\d{7,}[\w.\-/]*(?![\w\]])(?!,\d{2}(?!\d))", lambda m: neu(m.group(0)), anon)
     return anon, mp
 
@@ -399,7 +399,7 @@ def wortliste():
 
 
 def isolieren(text):
-    """Правило Сергея 11.10.2026: «с нераспознанными или сомнительными остатками поступать просто -- изолировать от выпуска наружу».
+    """решение автора 11.10.2026: «с нераспознанными или сомнительными остатками поступать просто -- изолировать от выпуска наружу».
     Строка распознанного скана, в которой есть два и более слова из латинских букв, но ни одного слова от четырёх букв, известного
     словарю базы права, -- обрывок распознавания: в нём прячутся части имён и адресов. Такая строка в лист не выводится.
     Строки с суммами, с кириллицей, из одних меток и строки-разделители страниц остаются. -> (текст, число изолированных строк)"""
@@ -447,7 +447,7 @@ def nachlese(anon, mp):
         mp[ph] = val
         NACHLESE_WERTE.add(val.strip().lower())           # найдено по месту в тексте: шаг «обычное слово -- вернуть» это не отменяет
         return ph
-    for ph, v in list(mp.items()):                       # 0: заголовок столбца, принятый за лицо («Name», «Item Name»; дело Gewerbe 16.10.2026) -- вернуть
+    for ph, v in list(mp.items()):                       # 0: заголовок столбца, принятый за лицо («Name», «Item Name»; имитация дела Б 16.10.2026) -- вернуть
         if ph.startswith("[Person") and re.fullmatch(r"(?i)(?:\w+ )?(?:name|number|date|amount|account|holder|client|supplier|total|type|status|code)", str(v).strip()):
             anon = anon.replace(ph, str(v))
             del mp[ph]
@@ -456,7 +456,7 @@ def nachlese(anon, mp):
         if ph.startswith(("[Ort", "[Firma", "[Person")) and 6 <= len(kern) <= 40:
             rx = r"(?i)(?<![A-Za-zÄÖÜäöüß\[])" + r"\s{0,2}".join(re.escape(ch) for ch in kern) + r"(?:\s?[a-zäöüß]){0,3}(?![\w\]])"
             anon = re.sub(rx, lambda m: ph if " " in m.group(0).strip() else m.group(0), anon)
-    # 2: обычное слово словаря («[Person 5]/Daten», «[Ort 3]-Gesetz») именем не считается (стенд Salon 12.10.2026: 23 таких замены дали остановки контроля)
+    # 2: обычное слово словаря («[Person 5]/Daten», «[Ort 3]-Gesetz») именем не считается (имитация дела А 12.10.2026: 23 таких замены дали остановки контроля)
     anon = re.sub(r"(\[(?:Ort|Person) [^\]]+\])([-/])([A-ZÄÖÜ][a-zäöüß]{2,})", lambda m: m.group(0) if _gemeinwort(m.group(3)) else
                   m.group(1) + m.group(2) + neu(m.group(3), "Ort" if m.group(1).startswith("[Ort") else "Person"), anon)
     anon = re.sub(r"([A-ZÄÖÜ][a-zäöüß]{3,})-(\[Ort [^\]]+\])", lambda m: m.group(0) if _gemeinwort(m.group(1)) else neu(m.group(1), "Ort") + "-" + m.group(2), anon)
@@ -468,7 +468,7 @@ def nachlese(anon, mp):
     # 7: строка «место, дата» в шапке письма («Musterstadt, 17.02.2025», «Musterstadt, den 17.02.2025») -- такие строки с 12.10.2026 остаются в листе, место закрывается
     anon = re.sub(r"(?m)^([A-ZÄÖÜ][a-zäöüß]{2,}(?:[ -][A-ZÄÖÜ][a-zäöüß]{2,})?)(, (?:den |am )?\d{1,2}\.\d{1,2}\.(?:19|20)?\d{2})[ \t]*$",      # только с запятой: без неё это строка выписки («Gutschrift 01.02.2024»)
                   lambda m: m.group(0) if _gewoehnlich(m.group(1)) or _nomen(m.group(1), anon) else neu(m.group(1), "Ort") + m.group(2), anon)
-    # 8 (дело Gewerbe 16.10.2026): латинская фамилия в другом роде или форме -- «Ivanov» закрыта, «IVANOVA» в выписке (43 раза) и «ivanov_elster.pfx»
+    # 8 (имитация дела Б 16.10.2026): латинская фамилия в другом роде или форме -- «Ivanov» закрыта, «IVANOVA» в выписке (43 раза) и «ivanov_elster.pfx»
     # открыты. Основа фамилии (без -ova/-ov/-skaya/-a …, не короче 5 букв, не обычное слово) -- в любом регистре и с любым из этих окончаний
     # под ту же метку; основа от 6 букв внутри учётной записи или имени файла (части через «_ . -» или цифры) -- вся запись новой меткой.
     ENDE = r"(?:skaya|skaja|skiy|skij|sky|ski|ska|ova|eva|ina|aya|aja|ov|ev|in|iy|ij|yj|a)"
@@ -484,13 +484,13 @@ def nachlese(anon, mp):
             if len(stem) >= 6:
                 anon = re.sub(r"(?<![\w\[@])\w[\w.-]*[_.]\w[\w.-]*(?![\w\]])",
                               lambda m, st=stem.lower(): neu(m.group(0), "Kennung") if st in m.group(0).lower() else m.group(0), anon)
-    # 9 (дело Gewerbe 16.10.2026): координаты «51.5136, 7.4653» (журнал поездок, Timeline) указывают дом и места человека -- 1 356 открытых.
+    # 9 (имитация дела Б 16.10.2026): координаты «51.5136, 7.4653» (журнал поездок, Timeline) указывают дом и места человека -- 1 356 открытых.
     # Одна пара -- одна метка; точность не сохраняется (на уровне 1 место -- такой же признак лица, как адрес).
     koord = {}
     anon = re.sub(r"(?<![\d.])-?(?:[0-8]?\d)\.\d{4,},\s*-?(?:1[0-7]\d|\d{1,2})\.\d{4,}(?![\d.])",      # широта до 89, долгота до 179, от 4 знаков: «92.859,92.859» -- суммы
                   lambda m: koord[re.sub(r"\s", "", m.group(0))] if re.sub(r"\s", "", m.group(0)) in koord
                   else koord.setdefault(re.sub(r"\s", "", m.group(0)), neu(m.group(0), "Koordinaten")), anon)
-    # 10 (дело Gewerbe 16.10.2026): выгрузка банка или бухгалтерии таблицей -- в столбце контрагента или владельца счёта частные лица
+    # 10 (имитация дела Б 16.10.2026): выгрузка банка или бухгалтерии таблицей -- в столбце контрагента или владельца счёта частные лица
     # («Vorname Nachname», в том числе врачебная практика) оставались открытыми: модель не видит имён в строках CSV. Значение столбца из 2–4 слов
     # только из букв, без правовой формы, без цифр и «*», ни одно слово не обычное (словарь) и не платёжная формула -- лицо.
     # Цена: магазин с необычным названием («Toma Toma») тоже закрывается -- теряется только название продавца.
@@ -522,7 +522,7 @@ def nachlese(anon, mp):
                     werte.append(v)
     for v in sorted(set(werte), key=len, reverse=True):
         anon = re.sub(rf"(?<![\w\[]){re.escape(v)}(?![\w\]])", neu(v, "Person"), anon)
-    # 12 (дело Gewerbe, находки агента дела 16.10.2026): номер договора или документа «M202146», «VW-Vertrag M202146» -- буквы и от пяти цифр
+    # 12 (имитация дела Б, находки агента дела 16.10.2026): номер договора или документа «M202146», «VW-Vertrag M202146» -- буквы и от пяти цифр
     anon = re.sub(r"(?<![\w\[/.-])(?!DE\d{9}\b)[A-Z]{1,3}-?\d{5,}(?![\w\]])", lambda m: neu(m.group(0), "Kennung"), anon)
     # 13: отличительное слово уже закрытой фирмы стоит отдельно («Rechnung Muster 14.03.2022» при «W. Muster GmbH») -- той же меткой
     for ph, v in list(mp.items()):
@@ -787,7 +787,7 @@ def _namensartig(v):
 
 
 def vorschlag(docs_dir):
-    """Шаг диалога (порядок Сергея 09.10.2026: «анонимайзер после обработки первички спрашивает: обнаружены вот такие действующие
+    """Шаг диалога (решение автора 09.10.2026: «анонимайзер после обработки первички спрашивает: обнаружены вот такие действующие
     лица… выберите основных и проверьте их роли»). Пишет предложение программы в AKTEURE_VORSCHLAG.txt (каждый раз заново) и,
     если файла выбора ещё нет, создаёт из него AKTEURE_VORGABE.txt; при повторных сборках дописывает в файл выбора только новых.
     Учтены замечания обкатки 09.10: мусорные написания и строки не предлагаются; одиночная часть двойной фамилии -- другому супругу;
@@ -974,7 +974,7 @@ def load_registry(docs_dir):
     from rapidfuzz import fuzz
     f = Path(docs_dir).parent / "figuranten.json"
     auto = [r for r in json.load(open(f, encoding="utf-8")) if r.get("sicher")] if f.exists() else []
-    # мусорные написания найденных программой лиц (стенд Salon 12.10.2026: в реестре стояли куски предложений до 22 слов и одиночные обычные слова,
+    # мусорные написания найденных программой лиц (имитация дела А 12.10.2026: в реестре стояли куски предложений до 22 слов и одиночные обычные слова,
     # одна такая запись получила роль клиента и дала ложные метки): написание длиннее шести слов и написание из одного слова словаря базы права
     # в замену не идут; запись без годных написаний из реестра уходит. Заданного обработчиком это не касается.
     W_ = wortliste()
@@ -1026,7 +1026,7 @@ def apply_registry(text, registry):
                 text = regex.sub(rf"(?<![\w\[])(?=\w)(?:{regex.escape(v)}){{e<=2}}(?<=\w)(?![\w\]])", lab, text, flags=regex.I)
         elif re.fullmatch(r"[A-Za-zÄÖÜäöüß-]{4,7}", v):
             text = re.sub(rf"(?<![\w\[])" + "".join(OCR.get(c, re.escape(c)) for c in v) + r"(?![\w\]])", lab, text)
-            if len(v) >= 6 and v[:1].isupper() and v.lower() not in wortliste():      # одна подменённая буква, не первая («Mustermann» -> «Mustermenn», стенд Salon
+            if len(v) >= 6 and v[:1].isupper() and v.lower() not in wortliste():      # одна подменённая буква, не первая («Mustermann» -> «Mustermenn», имитация дела А
                 # 12.10.2026: фамилия из 6 букв с другой гласной осталась открытой); слово с заглавной буквы и не из словаря базы права
                 text = regex.sub(rf"(?<![\w\[]){regex.escape(v[0])}(?:{regex.escape(v[1:])}){{s<=1}}(?![\w\]])",
                                  lambda m, lab=lab: m.group(0) if m.group(0).lower() in wortliste() else lab, text)
@@ -1201,7 +1201,7 @@ def build(docs_dir, question, level=1):
         or (ph.startswith("[Person") and v.split() and noun.search(v.split()[-1])))}
     learned = {x["text"].lower() for x in anonymizer.load_learned()} | NACHLESE_WERTE       # отмеченное человеком и найденное по месту в тексте назад не возвращается
     junk = {ph: v for ph, v in junk.items() if v.strip().lower() not in learned}
-    # обычное слово по самому делу (стенд Salon 12.10.2026: «Schreiben», «Einkünfte», «Daten» закрыты как лицо или место; «A. Sozialhilfe», «B. Lohn» -- пункты
+    # обычное слово по самому делу (имитация дела А 12.10.2026: «Schreiben», «Einkünfte», «Daten» закрыты как лицо или место; «A. Sozialhilfe», «B. Lohn» -- пункты
     # перечня, принятые за инициал с фамилией): слово есть в словаре базы права И в тексте дела стоит сразу после артикля или притяжательного слова.
     # Фамилия так почти не стоит. Отмеченное человеком (--merke) этим не отменяется.
     _art = r"(?:der|die|das|dem|den|des|eine?|eine[mnrs]|Ihr(?:e[mnrs]?)?|unser(?:e[mnrs]?)?|mein(?:e[mnrs]?)?|kein(?:e[mnrs]?)?|diese[mnrs]?|jede[mnrs]?|Der|Die|Das|Ihr(?:e[mnrs]?)?|Unser(?:e[mnrs]?)?)"
@@ -1235,7 +1235,7 @@ def build(docs_dir, question, level=1):
                     mapping[f"[Person {len(mapping) + 1}]"] = part
     for ph, v in sorted(mapping.items(), key=lambda x: -len(x[1])):
         if len(v) > 3:
-            # в JSON начало строки текста выглядит как «\n» + значение: буква n перед значением -- не часть слова (остаток Салона 08.10.2026: BIC в начале строки)
+            # в JSON начало строки текста выглядит как «\n» + значение: буква n перед значением -- не часть слова (имитация дела А 08.10.2026: BIC в начале строки)
             blob = re.sub(rf"(?:(?<![\w\[])|(?<=\\n)|(?<=\\t)){re.escape(json.dumps(v.strip(), ensure_ascii=False)[1:-1])}(?![\w\]])", lambda m, ph=ph: ph, blob)
     for ph, v in sorted(mapping.items(), key=lambda x: -len(x[1])):      # номера -- и вплотную к буквам или цифрам («KVNR» + номер без пробела)
         w = v.strip()
@@ -1254,7 +1254,7 @@ def build(docs_dir, question, level=1):
             if re.search(r"\.(pdf|jpe?g|png)\.txt$", quellen.get(str(d_neu.get("nr")), "").lower()):      # только распознанные сканы и фото
                 d_neu["text"], n_iso = isolieren(d_neu["text"])
                 ISOLIERT[quellen.get(str(d_neu.get("nr")), "")] = n_iso
-    # обрывок имени рядом с меткой лица (распознавание потеряло первую букву, остаток слова не вошёл в замену): остаток Салона 08.10.2026
+    # обрывок имени рядом с меткой лица (распознавание потеряло первую букву, остаток слова не вошёл в замену): имитация дела А 08.10.2026
     P_M = r"\[(?:Mandant|Mandantin|Person|Ehegatte|Steuerberater|Gesprächspartner)[^\]]*\]"
 
     def _rest(s):
@@ -1275,7 +1275,7 @@ def build(docs_dir, question, level=1):
     ef = Path(docs_dir).parent / "figuranten_entscheidungen.json"
     akt, hin, fragen = build_akteure(neu, registry, json.load(open(ef, encoding="utf-8")) if ef.exists() else {}, mapping)
     if akt:
-        # замечание Сергея к шагу 6 (09.10.2026): в листе прямо сказано, что маска читается как имя -- для разбора всё равно, кто за ней
+        # решение автора к шагу 6 (09.10.2026): в листе прямо сказано, что маска читается как имя -- для разбора всё равно, кто за ней
         neu["akteure"], neu["akteure_hinweis"] = akt, ("Jede Maske steht durchgehend für denselben Beteiligten und ist wie ein Name zu lesen; "
                                                         "für die rechtliche Prüfung ist der wirkliche Name ohne Bedeutung. " + hin)
     (Path(docs_dir).parent / "AKTEURE_FRAGEN.md").write_text(          # с подлинными именами: только для обработчика, в передачу не входит
@@ -1317,7 +1317,7 @@ def build(docs_dir, question, level=1):
             bz = beziehungen(neu, vk)                    # связи -- уже по исправленной таблице
             if bz:
                 neu["beziehungen"] = bz
-    # третья ступень контроля прямо в сборке (правило Сергея 11.10.2026: сомнительные остатки наружу не выпускать): строка или ячейка, где
+    # третья ступень контроля прямо в сборке (решение автора 11.10.2026: сомнительные остатки наружу не выпускать): строка или ячейка, где
     # стоит подтверждённое имя дела дословно или с искажением, удерживается. Число мест по документам -- в annahme_namensrest.json (без значений).
     try:
         import sekretaer
@@ -1325,7 +1325,7 @@ def build(docs_dir, question, level=1):
     except Exception as e:                               # noqa: BLE001
         nrest = {"fehler": type(e).__name__}
     json.dump(nrest, open(Path(docs_dir).parent / "annahme_namensrest.json", "w", encoding="utf-8"))
-    import annahme                                       # приёмка (решение Сергея 08.10.2026): непринятый документ остаётся в листе, но с пометкой
+    import annahme                                       # приёмка (решение автора 08.10.2026): непринятый документ остаётся в листе, но с пометкой
     DE = {"принят": "angenommen", "принят с оговоркой": "mit Vorbehalt", "не принят": "nicht angenommen"}
     for d in neu["documents"]:
         u, _, _ = annahme.urteil(d, annahme.seiten_info(docs_dir, quellen.get(str(d["nr"]))))
@@ -1377,7 +1377,7 @@ def frei_text_anon(text, registry, mapping):
 
 
 def build_akteure(sheet, registry, entscheidungen=None, mapping=None):
-    """Перечень действующих лиц дела как часть листа (направление Сергея 09.10.2026): маска, вид (лицо / организация / ведомство),
+    """Перечень действующих лиц дела как часть листа (решение автора 09.10.2026): маска, вид (лицо / организация / ведомство),
     роль, к какой организации относится, в каких документах и когда встречается. Имён в перечне нет -- только маски листа.
     Связь «лицо -- организация» выводится из близости масок в тексте и помечается «vermutet», пока обработчик не подтвердит
     (figuranten_entscheidungen.json: {"gehoert_zu": {"<имя лица>": "<имя организации>"}}).
@@ -1410,7 +1410,7 @@ def build_akteure(sheet, registry, entscheidungen=None, mapping=None):
                 "Organisation" if re.search(r"(?i)kanzlei|firma|gmbh|gesellschaft|büro|buero|betrieb|salon|verein", m_) else "Person"
         art = art_v if r.get("_vorgabe") else "Behörde oder Kasse" if (_AMT.search(name) or r["rolle"] in ("Finanzamt", "Krankenkasse", "Behörde", "Bank")) else \
             "Organisation" if (r.get("_firma") or _ORG.search(name) or _KANZLEI.search(name) and len(name.split()) >= 3) else "Person"
-        daten = []                                       # даты документов пока определяются ненадёжно (8 верных из 19 на реальном деле): в перечень не выводятся
+        daten = []                                       # даты документов пока определяются ненадёжно (8 верных из 19 на имитации дела): в перечень не выводятся
         roh.append({"r": r, "maske": lab, "art": art, "rolle": r["rolle"], "dokumente": sorted(doks), "nennungen": sum(doks.values()),
                     "erstes_datum": daten[0] if daten else None, "letztes_datum": daten[-1] if daten else None})
     # связь лицо -- организация: сколько раз маски стоят рядом (в пределах 300 знаков) в одном документе
@@ -1510,7 +1510,7 @@ def build_akteure(sheet, registry, entscheidungen=None, mapping=None):
 _SIGN = re.compile(r"(?i)mit freundlichen gr[uü](?:ß|ss)en|freundliche gr[uü](?:ß|ss)e|im auftrag|hochachtungsvoll|\bgez\.")
 _ANREDE = re.compile(r"(?i)sehr geehrte[r]?\s+(?:frau|herr|damen und herren|\[)|guten (?:tag|morgen|abend)[ ,]|hallo (?:frau|herr)")
 _MASKE = re.compile(r"\[[^\]\n]{2,40}\]")
-# слово обращения или титул (стенд Salon 12.10.2026: «Frau» из значения «Frau + фамилия» разошлось по делу как часть имени и закрылось меткой лица;
+# слово обращения или титул (имитация дела А 12.10.2026: «Frau» из значения «Frau + фамилия» разошлось по делу как часть имени и закрылось меткой лица;
 # из-за этого письма сборного файла не делились по обращению и дата письма в таблицу переписки не попадала)
 _ANREDEWORT = re.compile(r"(?i)^(?:herrn?|frau|familie|eheleute|damen|herren|geehrte[rn]?|liebe[rn]?|firma|dr|prof|hr|fr)\.?$")
 _DAT = re.compile(r"(?<!\d)(\d{2}\.\d{2}\.20\d{2})(?!\d)")
@@ -1528,7 +1528,7 @@ def datum_schreiben(t):
     """Дата письма, а не срока или периода: дата в начале письма, стоящая после «Datum», «, den», названия места или отдельно в строке;
     даты после «ab / vom / bis / seit / zum / Frist / Zeitraum» не берутся. Если уверенного кандидата нет -- None (лучше ничего, чем неверно)."""
     kopf = t[:1600]
-    # дата с названием месяца («17. Februar 2025») читается так же, как цифровая (стенд Salon 12.10.2026: ключевое письмо не попало в таблицу переписки)
+    # дата с названием месяца («17. Februar 2025») читается так же, как цифровая (имитация дела А 12.10.2026: ключевое письмо не попало в таблицу переписки)
     _MON = {m: i + 1 for i, m in enumerate("Januar Februar März April Mai Juni Juli August September Oktober November Dezember".split())}
     kopf = re.sub(r"\b(\d{1,2})\.\s?(" + "|".join(_MON) + r")\s+((?:19|20)\d{2})\b", lambda m: f"{int(m.group(1)):02d}.{_MON[m.group(2)]:02d}.{m.group(3)}", kopf)
     best, sc_best = None, 0
@@ -1551,15 +1551,15 @@ def datum_schreiben(t):
     return (best, sc_best) if sc_best >= 2 else (None, 0)
 
 
-# «стоп» свободными словами в последнем круге ответов (замечание Сергея к шагу 11 схемы, 09.10.2026): аудитор не обязан помнить слово GENUG
+# «стоп» свободными словами в последнем круге ответов (решение автора к шагу 11 схемы, 09.10.2026): аудитор не обязан помнить слово GENUG
 STOPP_FREI = re.compile(r"(?i)(больше|более)\s+(у меня\s+)?(нет|нету)\s+(никакой\s+)?информации|больше\s+(мне\s+)?нечего\s+(добавить|сказать|сообщить)|"
                         r"не знаю,?\s+что\s+(тебе\s+|вам\s+)?ещ[её]\s+(сказать|добавить)|это\s+вс[её],?\s+что\s+(я\s+)?(знаю|есть)|вопросов\s+достаточно|"
                         r"keine\s+weiteren\s+(angaben|informationen|unterlagen)|mehr\s+(weiß|weiss)\s+ich\s+nicht|mehr\s+habe\s+ich\s+nicht")
 
 
 def gegenprobe(sheet, kandidaten, vk):
-    """Встречная проверка выбора аудитора (замечание Сергея к шагу 5 схемы, 09.10.2026): названные «главные» -- пожелание, а не фильтр;
-    люди ошибаются и смотрят на второстепенное, программа сама смотрит суть. Суть -- не частота, а роль в переписке (обкатка Salon на
+    """Встречная проверка выбора аудитора (решение автора к шагу 5 схемы, 09.10.2026): названные «главные» -- пожелание, а не фильтр;
+    люди ошибаются и смотрят на второстепенное, программа сама смотрит суть. Суть -- не частота, а роль в переписке (имитация дела А на
     деле): в проверку идёт каждая не названная маска, которая подписала документ или стоит в его шапке, и частые маски; маски вида
     «unbekannt» не идут (обычное слово, принятое за имя). Названная организация считается найденной и по отправителю или адресату
     документа, и по своим сотрудникам. -> (пояснение для листа -- только маски, [вопросы аудитору с подлинными именами])"""
@@ -1603,7 +1603,7 @@ def gegenprobe(sheet, kandidaten, vk):
             teil_von.setdefault(int(nr_.group(0)), []).append((tm.get(str(v["dok"])), v.get("von") if v.get("von") in akt else None))
 
     def absender_von(nr, lab):
-        """Отправитель той части документа, где стоит маска (обкатка Salon: в сборном документе письма разных канцелярий). Если маска
+        """Отправитель той части документа, где стоит маска (имитация дела А: в сборном документе письма разных канцелярий). Если маска
         стоит в части без определённого отправителя или в частях с разными отправителями -- привязки нет: лучше «не определено»."""
         teile_ = teil_von.get(nr, [])
         mit = [von for masken, von in teile_ if masken is None or lab in masken]

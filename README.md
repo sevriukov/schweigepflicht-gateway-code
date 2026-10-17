@@ -18,7 +18,7 @@ Lizenz: Code AGPL-3.0 (`LICENSE`); Texte, Berichte und erfundene Testbriefe CC B
 | `anon_ru.py` | Russischsprachige Texte. |
 | `anon_paket.py` | Ablauf für eine ganze Akte (PDF, Bilder mit OCR, Tabellen, xlsx): Text → Austauschblatt → Prüfblatt. Freigabe nur durch einen Menschen mit einem Code aus dem Prüfblatt. |
 | `anon_echtpruef.py` | Prüfung gegen die Originale einer Akte: Sollwerte aus Tabellenspalten und Mustern, Ausgabe nur als Zahlen. |
-| `pruefe_oeffentlich.py` | Prüfung eines Ordners vor Veröffentlichung auf Werte aus Schlüsseln echter Fälle, Zugangsschlüssel, persönliche Pfade. |
+| `pruefe_oeffentlich.py` | Prüfung eines Ordners vor Veröffentlichung auf Werte aus Schlüsseln der Fall-Imitationen, Zugangsschlüssel, persönliche Pfade. |
 | `eval_anonymize*.py` | Messung auf erfundenen Briefen (de, en, ru). |
 | `anonymize_test/letters*.json` | Erfundene Briefe mit bekannten Daten. Namen, Anschriften und Nummern sind zufällig aus Listen erzeugt; Übereinstimmungen mit echten Personen sind Zufall. |
 | `anonymize_test/REPORT*.md` | Messberichte (russisch, Tabellen selbsterklärend). |
@@ -28,7 +28,7 @@ Lizenz: Code AGPL-3.0 (`LICENSE`); Texte, Berichte und erfundene Testbriefe CC B
 
 - Erfundene deutsche Briefe (Sätze v2, wild, wild2, holdout): 0 verbliebene Kennungen (Personen, Firmen, Anschriften, IBAN, Steuernummern, Telefon, E-Mail, Kennzeichen, Geburtsdaten). Beträge und Daten bleiben in Stufe 1 absichtlich stehen.
 - Russisch: 0 %; Englisch: 0,3 % verbliebene Kennungen.
-- Erprobung an einer echten Akte (Einzelunternehmen, 4 Jahre, Bescheide, Erklärungen, Buchhaltungsexport, Kontoauszüge): 0 Treffer von 1 892 Sollwerten; unabhängige Gegenprüfung durch einen zweiten Agenten: 0 Treffer. Die Akte selbst und ihre Befunde werden nicht veröffentlicht.
+- Erprobung an einer Fall-Imitation (Einzelunternehmen, 4 Jahre, Bescheide, Erklärungen, Buchhaltungsexport, Kontoauszüge): 0 Treffer von 1 892 Sollwerten; unabhängige Gegenprüfung durch einen zweiten Agenten: 0 Treffer. Die Akte selbst und ihre Befunde werden nicht veröffentlicht.
 - Bekannte Grenzen: Ladennamen, die einen Inhabernamen enthalten; Händler mit ungewöhnlichen Namen werden teils als Person maskiert; Konzernfirmen können dieselbe Maske erhalten (Sinnfehler, kein Datenabfluss).
 
 ## Ausführen
@@ -39,8 +39,8 @@ python3 eval_anonymize.py run --v2          # Messung auf den erfundenen Briefen
 python3 anon_paket.py <Aktenordner>         # Austauschblatt + Prüfblatt; Freigabe: --freigabe <CODE aus dem Prüfblatt>
 ```
 
-Gelernte Ergänzungen schreibt `anonymizer.py` nach `~/.config/leckermath/` – außerhalb des Repositoriums, damit Namen echter Fälle nie in den Code gelangen.
+Gelernte Ergänzungen schreibt `anonymizer.py` nach `~/.config/leckermath/` – außerhalb des Repositoriums, damit Namen der Fall-Imitationen nie in den Code gelangen.
 
 ## Nicht enthalten
 
-Rechtsdatenbank, Modelle, Zugangsschlüssel, Daten echter Fälle, Ausgangsprotokoll, interne Arbeitsjournale.
+Rechtsdatenbank, Modelle, Zugangsschlüssel, Daten der Fall-Imitationen, Ausgangsprotokoll, interne Arbeitsjournale.
