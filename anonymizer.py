@@ -30,12 +30,19 @@ MONTH = r"(?:Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|N
 # жёсткие форматы: (шаблон, метка). Порядок важен: длинные номера раньше коротких.
 HARD = [
     (r"(?:https?://|www\. ?)[^\s<>\"\]\)]+", "Link"),                                      # ссылки -- целиком (в них бывают имена, ключи доступа к облачным папкам)
+    # адрес сайта без http/www («habermehl-sanitaer.de/rechnung») -- атака 19.10.2026; адреса ведомств и судов -- публичные, остаются
+    (r"(?<![\w@./-])(?!(?:[\w-]+\.)*(?:bund|bundesfinanzministerium|bzst|bundesbank|bafin|bundesfinanzhof|bverfg|gesetze-im-internet|"
+     r"elster|europa|curia|finanzamt|justiz|nrw|bayern|niedersachsen|sachsen|hessen|berlin|hamburg|bremen|saarland|thueringen|"
+     r"brandenburg|sachsen-anhalt|rlp|schleswig-holstein|mv-regierung|baden-wuerttemberg|destatis|dejure|openjur)\.(?:de|eu)\b)"
+     r"[a-z0-9][\w-]*(?:\.[\w-]+)*\.(?:de|com|net|org|eu|info|biz|at|ch|io|ru|nl|pl|tr|it|fr|uk|online|shop|gmbh)\b(?:/[^\s<>\"\]\)]*)?", "Link"),
     # учётная запись сотрудника в подвале распечатки («Währung: EUR vorname.nachname Seite 1») и после слов «Benutzer», «Bearbeiter» -- имитация дела А 08.10.2026
     (r"(?<=Währung: EUR )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}", "Kennung"),
     (r"(?<![\w@/.])[A-Za-zÄÖÜäöüß]{2,}\.[a-zäöüß]{3,}(?= Seite \d)", "Kennung"),
     (r"(?<=Benutzer: )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}|(?<=Benutzer )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}|(?<=Bearbeiter: )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}|(?<=Kennung: )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}", "Kennung"),
     (r"[\w.+-]+ ?@ ?[\w-]+(?: ?\. ?[\w-]+)+", "E-Mail"),                                 # с пробелами распознавания вокруг «@» и точек
-    (r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){3,7}(?:[ ]?[A-Z0-9]{1,3})?\b", "IBAN"),
+    (r"\b[A-ZА-Я]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){3,7}(?:[ ]?[A-Z0-9]{1,3})?\b", "IBAN"),       # 19.10: и с кириллическим кодом страны («ДЕ44…»)
+    # IBAN и другие номера словами («IBAN DE vier vier fünf null …») -- атака 19.10.2026: шесть и больше цифр словами подряд
+    (r"(?i)(?:\b[A-Z]{2}[ ]+)?(?:\b(?:null|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b[ ,-]*){6,}", "Kennung"),
     (r"\b(?:AT|BE|BG|CY|CZ|DE|DK|EE|EL|ES|FI|FR|HR|HU|IE|IT|LT|LU|LV|MT|NL|PL|PT|RO|SE|SI|SK)[ ]?[A-Z0-9]{8,12}\b(?<=\d)", "USt-IdNr"),
     (r"(?<=BIC[: ])\s*[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b|(?<=BIC: )\s*[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b", "BIC"),
     (r"\b\d{2,3}/\d{3,4}/\d{4,5}\b|\b\d{13}\b", "Steuernummer"),
@@ -44,11 +51,21 @@ HARD = [
     (r"\b[A-ZÄÖÜ]{1,3}-[A-Z]{1,2}[ ]?\d{1,4}[EH]?\b|\b(?![IVX]+ )[A-ZÄÖÜ]{1,3} (?!R |B |S |ZR |AR )[A-Z]{1,2} \d{1,4}[EH]?\b(?![/.]\d)", "Kennzeichen"),
     (r"(?<![\w/-])\b(?!\d[\d.]*-[A-ZÄÖÜ][A-Za-zäöüß]+(?:-[A-ZÄÖÜ][a-zäöüß]+)*\b)(?!\d{2,4}/\d+/(?:EG|EU|EWG|EGV|Euratom)\b)(?![CT]-\d+/\d{2}\b)(?=[\w/.-]*\d)(?=[\w/.-]*[A-ZÄÖÜ])\w+(?:[-/]\w+)+\b", "Kennung"),
     (r"\b[A-Z][ ]?\d{3}[ ]?\d{3}[ ]?\d{3}\b|\b[A-Z]\d{5}[ ]\d{4}\b", "Versichertennr"),
+    # 19.10.2026 (остатки набора wild: номера с подписью, поземельная книга, номер кузова, таможня, USt-IdNr. вне ЕС)
+    (r"(?<=Grundbuch )[^.\n]{0,60}?\bBlatt\s+\d{1,6}\b|\bBlatt\s+\d{1,6}(?=[^.\n]{0,40}Grundbuch)|(?<![\w-])Flurst(?:ück|ücke|\.)?\s+(?:Nr\.\s*)?\d{1,5}(?:/\d{1,4})?|\bFlur\s+\d{1,4}\b", "Grundbuch"),
+    (r"(?<![A-Za-z0-9])(?=[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9]))(?=[A-HJ-NPR-Z0-9]*\d)(?=[A-HJ-NPR-Z0-9]*[A-HJ-NPR-Z])[A-HJ-NPR-Z0-9]{17}", "Fahrgestellnr"),
+    (r"\b\d{2}[A-Z]{2}[A-Z0-9]{14}\b", "MRN"),
+    (r"(?:(?<=USt-IdNr\. )|(?<=USt-IdNr\.: )|(?<=UST-ID )|(?<=USt-ID )|(?<=Ust-Id )|(?<=UST-ID: )|(?<=USt-ID: )|(?<=VAT ID )|(?<=VAT ID: )|(?<=lautet ))"
+     r"[A-Z]{2}(?=[A-Z0-9]{8,12}\b)(?=[A-Z0-9]*\d{6})[A-Z0-9]{8,12}\b", "USt-IdNr"),
     (r"\bPostfach\s+\d[\d ]{2,10}\d\b", "Adresse"),
     (r"(?:[A-ZÄÖÜ][\wäöüß.-]+ ){1,3}\d{1,4} ?[a-z]?(?=,?\s+(?:in\s+)?\d{5}\b)", "Adresse"),
     (rf"\b(?:{PREP}[ \t]+)?(?:[A-ZÄÖÜ][\wäöüß.-]*[ \t]+){{0,2}}[A-ZÄÖÜ]?[\wäöüß.-]*{STREET_END}[ \t]*\d{{1,4}}[ \t]?[a-zA-Z]?\b", "Adresse"),   # в пределах одной строки
     (rf"\b{PREP}\s+(?!{MONTH}\b|Jahr\b|Jahre\b|Monat\b|Zeitraum\b|Höhe\b|Umfang\b)[A-ZÄÖÜ][\wäöüß-]+\s+(?!(?:19|20)\d{{2}}\b)\d{{1,4}}\s?[a-zA-Z]?\b", "Adresse"),
 ]
+# номер с подписью («Beleg-Nr. 9931», «Mandanten-Nr. 1234»): подпись остаётся, номер -- под метку (19.10.2026, остатки набора wild);
+# группа 1 -- подпись, группа 2 -- номер
+HARD_LABEL = [(r"\b((?:Beleg|Mandanten|Kunden|Berater|Vertrags|Auftrags|Vorgangs|Mitglieds|Versicherungsschein|Kassenzeichen)"
+               r"(?:-Nr\.|-Nummer|nummer|nr\.)\s*:?\s*)([A-Z0-9][\w/-]{2,})", "Kennung")]
 KEEP = re.compile(r"^(Inh\.?|Tatzeit|Tatort|Tatzeitraum|Geschädigte[rn]?|Anzeigenerstatter(?:in)?|Formularerstellung|Sachbearbeitung|Amtsbezeichnung|Bescheinigung|Strafanzeige|Aktenzeichen|Vorgangsnummer|Dienststelle|Inhaber\w*|Kontakt\w*|Betriebs-?Nr\.?|[\w-]*-Nr\.?|SGB\b.*|BGB|HGB|AO|EStG|UStG|KStG|GewStG|StBerG|ZPO|SGG|FGO|Der|Die|Das|Den|Dem|Des|Ein|Eine|Einer|Einem|Wir|Sie|Ich|Er|Es|Im|In|Am|An|Auf|Für|Von|Zu|Nach|Bei|Aus|Wenn|Dies\w*|"
                   r"West|Ost|Nord|Süd|Rechtskreis|Team|Abteilung|Sachgebiet|Referat|EuGH|EuG|BFH|BGH|BVerfG|BSG|BMF|Summe\w*|Saldo|Gesamt\w*|Zwischensumme|Betrag|Beträge|Konto|Datum|Seite|Monat|Jahr|Übertrag|Vortrag|Buchwert|Teilwert|Marktwert|Steuernummer|Vorsteuer|Umsatzsteuer|Finanzamt|Betriebsprüfung|Kleinunternehmer\w*|"
                   r"Einzelunternehmer\w*|Gesellschafter\S*|Geschäftsführer\w*|Tantieme|Jahresüberschuss\w*|Eigentumswohnung|Eheleute|"
@@ -302,10 +319,45 @@ def _mehrsprachig(out, tag, ner):
     return out
 
 
+AZ_GERICHT = (r"(?<![\w/.-])(?:[IVX]{1,4}|\d{1,3}) ?(?:K|V|R|B|S|E|U|Ko|BvR|BvL|BvF|BvE|BvQ|BvC|ZR|ZB|StR|AZR|AZB|LB|LC|LA|KR|AL|AS|AY|KA|BS)\b"
+              r" ?\d{1,5}/\d{2,4}(?: [A-Z]{1,3}(?![\wäöü]))?")
+GERICHT_NAME = (r"\b(?:BFH|BVerfG|BGH|BSG|BAG|BVerwG|EuGH|Bundesfinanzhof|Bundesverfassungsgericht|Bundesgerichtshof|Bundessozialgericht|"
+                r"(?:FG|Finanzgericht|LSG|Landessozialgericht|SG|Sozialgericht|OLG|Oberlandesgericht|LG|Landgericht|VG|OVG|VGH|Verwaltungsgericht)"
+                r"(?:\s+(?:des\s+Landes\s+|für\s+das\s+Land\s+)?[A-ZÄÖÜ][\wäöüß]+(?:[- ][A-ZÄÖÜ][\wäöüß]+)?)?)")
+_UNSICHTBAR = re.compile("[\u00ad\u200b-\u200f\u2060-\u2064\ufeff\u034f\u180e]")
+_KYR_LAT = str.maketrans("АВЕКМНОРСТХаеорсухіјѕ", "ABEKMHOPCTXaeopcyxijs")
+_LAT_KYR = str.maketrans("ABEKMHOPCTXaeopcyx", "АВЕКМНОРСТХаеорсух")
+
+
+def vorbereiten(text):
+    """19.10.2026 (атаки на обезличиватель, замечания DeepSeek/Gemini): привести текст к одному виду ДО всех правил, чтобы имя
+    нельзя было спрятать от них: NFKC (полноширинные и составные знаки), без невидимых знаков (U+200B…, мягкий перенос),
+    слова из смеси латиницы и кириллицы -> одним письмом (буквы-двойники -- по большинству букв слова),
+    перенос строки внутри слова склеивается, разрядка («H a b e r m e h l») склеивается."""
+    import unicodedata
+    # NFKC по знакам, кроме степеней и дробей («m²», «½» -- смысл, а не маскировка)
+    t = "".join(c if unicodedata.category(c) == "No" else unicodedata.normalize("NFKC", c) for c in unicodedata.normalize("NFC", text))
+    t = _UNSICHTBAR.sub("", t)
+
+    def _schrift(m):
+        w = m.group(0)
+        kyr = sum("\u0400" <= c <= "\u04ff" for c in w)
+        lat = sum(c.isascii() and c.isalpha() for c in w)
+        if not kyr or not lat:
+            return w
+        return w.translate(_KYR_LAT) if lat >= kyr else w.translate(_LAT_KYR)
+    t = re.sub(r"[\w\u0400-\u04ff]+", _schrift, t)
+    t = re.sub(r"(?<=[a-zäöüß])-[ \t]*\n[ \t]*(?!(?:und|oder|bzw|sowie|bis)\b)(?=[a-zäöüß])", "", t)
+    t = re.sub(r"(?<![\w.])(?:[A-Za-zÄÖÜäöüß] ){3,}[A-Za-zÄÖÜäöüß](?![\w])",
+               lambda m: re.sub(r" (?=[A-ZÄÖÜ])", "  ", m.group(0)).replace("  ", "\x00").replace(" ", "").replace("\x00", " "), t)
+    return t
+
+
 def anonymize(text, level=None, ner="all"):
     """ner: "all" -- лица, фирмы, места (связный текст); "per" -- только лица (распознанные сканы и бланки:
     на шуме распознавания модель принимает обычные слова за фирмы и места)."""
     level = level or LEVEL
+    text = vorbereiten(text)
     mapping, counters = {}, {}
     label = {"PER": "Person", "ORG": "Firma", "LOC": "Ort", "GPE": "Ort"}
 
@@ -332,6 +384,21 @@ def anonymize(text, level=None, ner="all"):
     if level == 1:
         out = re.sub(r"(?<![\w.,/-])\d{1,3}(?:\.\d{3})+(?:,\d{2})?(?![\w/]|[.,]\d)|(?<![\w.,/-])\d{1,6},\d{2}(?![\w/]|[.,]\d)", _halt, out)
     out = re.sub(r"((?:\bat |_at_)\d{1,2})\.(\d{2})\.(\d{2})(?=\.\w{2,4}\b|\b)", r"\1:\2:\3", out)       # «… at 11.54.49.ogg» -- время, не дата
+    # 19.10.2026 (замечания DeepSeek/Gemini: номер дела суда сразу указывает на дело): номер дела суда («3 K 1234/21», «IX R 7/24», «2 BvR 123/19»).
+    # Ссылка на опубликованное решение («vgl. BFH, Urteil vom … – VI R 5/18», «BStBl», «EFG») -- публичный источник: остаётся целиком вместе
+    # с названием суда; иначе (Az., Klageverfahren, anhängig, Ihr/unser Zeichen, без признака ссылки) -- собственное дело: номер целиком под метку.
+    for m in reversed(list(re.finditer(AZ_GERICHT, out))):
+        vor, nach = out[max(0, m.start() - 120):m.start()], out[m.end():m.end() + 40]
+        eigen = re.search(r"(?i)\b(?:Az\.?|Aktenzeichen|Klageverfahren|Klage|Verfahren des|Verfahren der|unser\w*|Ihr\w*|Mandant\w*|Revisionsverfahren|"
+                          r"Beschwerdeverfahren|Gz\.?|Geschäftszeichen)\b[^.;\n]{0,40}$", vor) or re.match(r"[^.;\n]{0,25}\banhängig", nach)
+        oeffentlich = re.search(r"(?:Urteil|Beschluss|Gerichtsbescheid|Entscheidung|Vorlagebeschluss)\s+vom\b[^;\n]{0,40}$|\bvgl\.|\bsiehe\b|\bBStBl\b|"
+                                r"BFH/NV|\bEFG\b|\bjuris\b|\bDStR[E]?\b|\bNJW\b|\bHFR\b|\bZfZ\b", vor + " " + nach[:25])
+        if oeffentlich and not eigen:
+            g = re.search(GERICHT_NAME + r"[^;\n]{0,70}$", vor)
+            a = m.start() - (len(vor) - g.start()) if g else m.start()
+            out = out[:a] + _halt(re.match(r".*", out[a:m.end()], re.S)) + out[m.end():]
+        else:
+            out = out[:m.start()] + tag("Aktenzeichen", m.group(0)) + out[m.end():]
     # (1) жёсткие форматы
     out = re.sub(rf"((?i:\bgeb\.|\bgeboren\w*|\bGeburts\w*|\bJahrgang)[^\n\d]{{0,60}}?|(?<!\*)\*(?!\*)\s?)(\d{{1,2}}\.\s?(?:\d{{1,2}}\.|{MONTH})\s?\d{{2,4}})\b",
                  lambda m: m.group(0) if m.group(1).startswith("*") and re.search(r"(?:20[1-9]\d)$", m.group(2))      # «**09.07.2024» -- жирный шрифт, не «*» рождения
@@ -341,6 +408,8 @@ def anonymize(text, level=None, ner="all"):
     out = re.sub(r"\b\d{1,2}\.\d{1,2}\.([3-9]\d)\b", r"im Jahr 19\1", out)
     for rx, kind in HARD:
         out = re.sub(rx, lambda m, kind=kind: tag(kind, m.group(0)), out)
+    for rx, kind in HARD_LABEL:
+        out = re.sub(rx, lambda m, kind=kind: m.group(1) + tag(kind, m.group(2)), out)
     # выученное на проверках человеком: убирается всегда (пробелы гибкие -- распознавание текста их ломает)
     for x in sorted(load_learned(), key=lambda x: -len(x["text"])):
         rx = r"\s*".join(re.escape(c) for c in x["text"] if not c.isspace()) if len(x["text"]) <= 40 else re.escape(x["text"])
@@ -408,7 +477,10 @@ def anonymize(text, level=None, ner="all"):
     for rx in (rf"\b(?:Herrn?|Frau|Eheleute|Familie|Dr\.|Prof\.|gez\.|StB|RA|WP|Hr\.|Fr\.)\s+((?:{NAME}\s+){{0,2}}{NAME})",
                rf"\b((?:[A-Z]\.\s?){{1,2}}{NAME})\b",
                rf"(?:Grüßen?|Gruß|LG|VG|MfG)[,!.]?\s+((?:{NAME}\s+){{1,2}}{NAME})",
-               rf"\]\s+und\s+({NAME}\s+{NAME})", rf"\[Person [A-Z]\]\s+({NAME})\b"):
+               rf"\]\s+und\s+({NAME}\s+{NAME})", rf"\[Person [A-Z]\]\s+({NAME})\b",
+               # 19.10.2026 (остатки wild): «Kanzlei-MA: Stefanie Müller», «Prüfer hr. schuster» (строчными в переписке)
+               rf"(?:\b[\w-]*-MA|Mitarbeiter(?:in)?|Sachbearbeiter(?:in)?|Bearbeiter(?:in)?|Ansprechpartner(?:in)?|Gesprächspartner(?:in)?|Prüfer(?:in)?)\s*:\s*((?:{NAME}\s+){{0,2}}{NAME})",
+               r"\b(?:[Hh]r|[Ff]r)\.\s+([a-zäöü][a-zäöüß]{3,})\b"):
         for m in list(re.finditer(rx, out)):
             val = m.group(1)
             if re.search(r"(?:SGB|Buch|Teil|Abschnitt|Kapitel|Anlage|Nr\.|Art\.) $", out[max(0, m.start(1) - 9):m.start(1)]) and re.match(r"[IVX]\.", val):
@@ -432,6 +504,20 @@ def anonymize(text, level=None, ner="all"):
                                                                                                 r"Consulting|Logistik|Haustechnik|Immobilienverwaltung|Söhne|Bau)", part) \
                     and not (ph.startswith(("[Firma", "[Ort")) and _de_wort(part)):     # обычное слово из названия фирмы («Leasing» из «VW Leasing») -- не по всему тексту (имитация дела Б 16.10.2026); у лиц фамилия-слово закрывается по-прежнему
                 out = re.sub(rf"(?<!\[)\b{re.escape(part)}(?:s|'s|’s)?\b(?! [A-Z0-9]+\])", ph, out)
+                out = re.sub(rf"(?<!\[)\b{re.escape(part.upper())}(?:S)?\b(?! [A-Z0-9]+\])", ph, out) if ph.startswith("[Person") and len(part) > 3 else out   # 19.10: «HABERMEHL»
+    # 19.10.2026 (атаки, «одна маска = одно лицо»): если распознавание имён раньше дало части имени лица другую метку
+    # («der Mandant HABERMEHL» -> [Ort A]), эта метка заменяется меткой лица; значение остаётся в таблице под служебным ключом для контроля
+    teile = {}
+    for ph, val in mapping.items():
+        if ph.startswith("[Person"):
+            for part in val.split():
+                if len(part.strip(",.;:()")) > 3:
+                    teile[part.strip(",.;:()").casefold()] = ph
+    for ph, val in list(mapping.items()):
+        if ph.startswith(("[Ort", "[Firma")) and isinstance(val, str) and re.sub(r"(?:s|'s|’s)$", "", val.strip()).casefold() in teile:
+            person = teile[re.sub(r"(?:s|'s|’s)$", "", val.strip()).casefold()]
+            out = out.replace(ph, person)
+            mapping[person + "#" + ph.strip("[]")] = mapping.pop(ph)
     out = re.sub(r"(\[Person [A-Z0-9]+\])(?:\s+\1)+", r"\1", out)
     if level == 1:                               # минимум: суммы и даты остаются, длинные номера без пояснения -- нет
         for m in reversed(list(re.finditer(r"(?<![\w\[.,])(?<!\d[.,] )\d(?:\d|[ /-]{1,3}(?=\d))*\d(?![\w]|,\d|\.\d)", out))):
@@ -562,6 +648,11 @@ def _gemeinwort_im_text(p, text):
 
 def guard(text, mapping, level=None):
     """Контроль исходящего текста: ничего из таблицы соответствия и никаких данных жёсткого формата. Возвращает нарушения."""
+    # 19.10.2026: невидимые знаки внутри слова и слова из смеси латиницы с кириллицей в исходящем тексте -- сами по себе нарушение
+    # (мягкий перенос и перенос строки в текстах норм из базы -- обычное дело, нарушением не считаются); проверка идёт по нормализованному тексту
+    bad_vor = (["невидимый знак внутри слова"] if re.search("\\w[\u200b-\u200f\u2060-\u2064\ufeff\u034f\u180e]\\w", text) else []) + \
+              (["слово из смеси латиницы и кириллицы"] if re.search(r"[A-Za-z][\u0400-\u04ff]|[\u0400-\u04ff][A-Za-z]", text) else [])
+    text = vorbereiten(text)
     low = text.lower()
     mapping = {k: (v.strip() if isinstance(v, str) else v) for k, v in mapping.items()}      # значение с пробелом по краям не совпадало с текстом (BIC в начале строки, 08.10.2026)
     bad = [v for k, v in mapping.items() if not k.startswith("rund") and len(v) > 3 and not (" " not in v.strip() and KEEP.match(v.strip())) and
@@ -573,6 +664,9 @@ def guard(text, mapping, level=None):
     for k, v in mapping.items():                       # отдельные части имён
         if k.startswith("[Person"):
             bad += [p for p in v.split() if len(p) > 3 and not KEEP.match(p) and re.search(rf"\b{re.escape(p)}" + ("" if p[:1].isupper() else r"(?![a-zäöüß])"), text) and not _gemeinwort_im_text(p, text)]   # обычное слово в ложном «имени» -- не остаток; строчная часть («anna») -- только отдельным словом, не в «annahme» (17.10)
+    for rx, kind in HARD_LABEL:                      # 19.10.2026
+        if any("[" not in m_.group(2) for m_ in re.finditer(rx, text)):
+            bad.append(kind)
     for rx, kind in HARD:
         for m_ in re.finditer(rx, text):
             if kind == "Kennzeichen" and re.match(r",\s?(\[|\d)", text[m_.end():m_.end() + 3]):      # «LV 200,53» в выписке -- сумма, не номер автомобиля
@@ -588,7 +682,12 @@ def guard(text, mapping, level=None):
         bad.append("PLZ")
     if level >= 2:
         bad += ["число вне налогового контекста: " + m.group(0) for m in residual_numbers(text, strict=level >= 3)]
-    return bad
+    try:                                              # 19.10.2026: указания для модели внутри материалов (инъекция) -- только с явного одобрения человека
+        import versteckt
+        bad += [f"указание для модели в материалах дела: «{h}»" for _, h in versteckt.injektion(text)[:5]]
+    except ImportError:
+        pass
+    return bad_vor + bad
 
 
 _ABK = r"(?:Gesch|Verb|Ford|Aufw|Abschr|Sonst|Betr|Rückst|Umsatzst|Vorst|Verr|Kto|Nr|Abs|Art|Buchst|bzw|ggf|inkl|zzgl|evtl|Tel|Str|Steuerber|Buchf|Verw|Vers|Beitr|Abr|lfd|usw|Dipl|Dr|Prof|St|Kfz|Betriebs|Rechts|Lohn|Geh)"

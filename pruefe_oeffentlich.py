@@ -41,9 +41,13 @@ def fall_werte(faelle):
         vf = P / "AKTEURE_VORGABE.txt"
         if vf.exists():                                  # строки состава: маска | роль | написания через «;»
             for ln in vf.read_text(encoding="utf-8").split("\n"):
+                # 19.10.2026: комментарий после «#» -- текст шаблона программы, не написания (давал ложные находки в exchange.py);
+                # «---» и метки масок («Person 5», «Kanzlei 2») -- тоже не значения дела
+                ln = ln.split("#", 1)[0]
                 t = [x.strip() for x in ln.split("|")]
-                if not ln.lstrip().startswith("#") and len(t) >= 3:
-                    hart |= {v.strip() for v in re.split(r"[;,]", t[-1]) if v.strip()}
+                if len(t) >= 3:
+                    hart |= {v.strip() for v in re.split(r"[;,]", t[-1]) if v.strip() and v.strip() != "---"
+                             and not re.fullmatch(r"\[?[A-Za-zÄÖÜäöüß-]+ \d+\]?", v.strip())}
         for f in P.glob("mapping*.json"):
             try:
                 d = json.load(open(f, encoding="utf-8"))
@@ -56,6 +60,14 @@ def fall_werte(faelle):
                 elif len(v) >= 8:
                     weich.add(v)
     hart = {v for v in hart if len(v) >= 5 and not v.lower().startswith("gesprächspartner")}
+    # 19.10.2026: одно обычное слово, вписанное в состав участников («Steuer», «Hinweis», «человек»), -- предупреждение, а не стоп:
+    # слово есть в словаре текстов законов (de) либо пишется только строчными кириллицей; имя автора открытой копии -- не находка
+    import gzip
+    wl = Path(__file__).resolve().parent / "de_wortliste_gesetz.txt.gz"
+    gesetz = {w.lower() for w in gzip.open(wl, "rt", encoding="utf-8").read().split("\n")} if wl.exists() else set()
+    gemein = {v for v in hart if " " not in v and (v.lower() in gesetz or v.lower() in {"якорь", "человек", "выгрузка"})}
+    hart = hart - gemein - {"Sergei Sevriukov"}
+    weich |= gemein
     weich -= hart
     rx = lambda vs: [re.compile(r"(?<!\w)" + re.escape(v) + r"(?!\w)", re.I) for v in sorted(vs, key=len, reverse=True)]     # noqa: E731
     return rx(hart), rx(weich)

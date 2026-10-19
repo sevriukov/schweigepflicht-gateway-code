@@ -38,6 +38,8 @@ import time
 import zipfile
 from pathlib import Path
 
+import versteckt  # noqa: E402  (19.10.2026: скрытое содержимое файлов)
+
 HERE = Path(__file__).resolve().parent
 AUDIO = (".ogg", ".opus", ".mp3", ".m4a", ".wav", ".aac")
 TEXT = (".txt", ".md", ".html", ".htm", ".eml", ".rtf", ".csv")
@@ -48,21 +50,7 @@ FRAGE = ("Was ist hier geschehen, welche Risiken und Fristen bestehen, und welch
 SKIP_FILES = {"CLAUDE.md", "README.md", "LIESMICH.md"}
 
 
-def xlsx_text(f):
-    """Таблица Excel -> текст: каждый лист заголовком «## Blatt: …», строки -- через запятую, как CSV (имитация дела Б 16.10.2026: выгрузка
-    бухгалтерии и журнал поездок лежали только в .xlsx, сборка их не видела)."""
-    import csv
-    import io
-    import openpyxl
-    out = []
-    for ws in openpyxl.load_workbook(f, data_only=True, read_only=True).worksheets:
-        buf = io.StringIO()
-        w = csv.writer(buf)
-        for r in ws.iter_rows(values_only=True):
-            if any(c not in (None, "") for c in r):
-                w.writerow(["" if c is None else c for c in r])
-        out.append(f"## Blatt: {ws.title}\n{buf.getvalue()}")
-    return "\n".join(out)
+# xlsx_text / docx_text -- в versteckt.py (19.10.2026: скрытые листы, удалённые правки, скрытый текст)
 
 
 def files(case, exts):
@@ -108,12 +96,6 @@ def step_voice(case, docs):
     return len(au), len(todo)
 
 
-def docx_text(f):
-    xml = zipfile.ZipFile(f).read("word/document.xml").decode("utf-8", errors="ignore")
-    xml = re.sub(r"</w:p>", "\n", xml)
-    return re.sub(r"<[^>]+>", "", xml)
-
-
 def step_text(case, docs):
     n = 0
     docs = docs.parent / "roh"
@@ -125,7 +107,10 @@ def step_text(case, docs):
         if dst.exists():
             continue
         try:
-            t = docx_text(f) if f.suffix.lower() == ".docx" else xlsx_text(f) if f.suffix.lower() in (".xlsx", ".xlsm") else f.read_text(encoding="utf-8", errors="ignore")
+            # 19.10.2026 (versteckt.py): DOCX без удалённых правок и скрытого текста, XLSX с пометкой скрытых листов/строк, EML без служебных заголовков
+            sfx = f.suffix.lower()
+            t = (versteckt.docx_text(f) if sfx == ".docx" else versteckt.xlsx_text(f) if sfx in (".xlsx", ".xlsm") else versteckt.eml_text(f) if sfx == ".eml"
+                 else f.read_text(encoding="utf-8", errors="ignore"))
         except Exception as e:
             print(f"  [!] не прочитан текстовый файл № {n + 1}: {str(e)[:60]}")
             continue
@@ -135,6 +120,7 @@ def step_text(case, docs):
         if len(t.strip()) >= 20:
             dst.write_text(t, encoding="utf-8")
             n += 1
+    versteckt.speichern(docs.parent)
     return n
 
 
@@ -405,6 +391,8 @@ def release(case, code):
     with open(HERE / "night_run" / "outbound_log.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps({"time": time.strftime("%F %T"), "id": "anon_paket_freigabe", "code": code, "ziel": str(dst), "approved": True, "by": "Bearbeiter",
                             "kontrolle_treffer": len(bad), "merkmale": mk, "trotzdem": "--trotzdem" in sys.argv}, ensure_ascii=False) + "\n")
+    import ausgangslog                                   # 19.10.2026: печать журнала исходящих цепочкой хешей
+    print(f"журнал исходящих запечатан; голова цепочки {ausgangslog.versiegeln()[1][:16]}")
     print(f"Передано: {dst}\n  austausch.json, dossier_anon.md, LIESMICH.md. Ключ и подлинники остались в папке дела.")
 
 

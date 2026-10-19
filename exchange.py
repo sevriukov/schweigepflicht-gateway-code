@@ -13,6 +13,7 @@ exchange.py -- «обменный лист» дела: единственный 
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 
 import anon_ru
@@ -484,7 +485,7 @@ def nachlese(anon, mp):
             if len(stem) >= 6:
                 anon = re.sub(r"(?<![\w\[@])\w[\w.-]*[_.]\w[\w.-]*(?![\w\]])",
                               lambda m, st=stem.lower(): neu(m.group(0), "Kennung") if st in m.group(0).lower() else m.group(0), anon)
-    # 9 (имитация дела Б 16.10.2026): координаты «51.5136, 7.4653» (журнал поездок, Timeline) указывают дом и места человека -- 1 356 открытых.
+    # 9 (имитация дела Б 16.10.2026): координаты «50.1234, 8.5678» (пример выдуман) (журнал поездок, Timeline) указывают дом и места человека -- 1 356 открытых.
     # Одна пара -- одна метка; точность не сохраняется (на уровне 1 место -- такой же признак лица, как адрес).
     koord = {}
     anon = re.sub(r"(?<![\d.])-?(?:[0-8]?\d)\.\d{4,},\s*-?(?:1[0-7]\d|\d{1,2})\.\d{4,}(?![\d.])",      # широта до 89, долгота до 179, от 4 знаков: «92.859,92.859» -- суммы
@@ -1057,6 +1058,60 @@ def apply_registry(text, registry):
     return text
 
 
+
+def einheitlich(neu, mp):
+    """Обратный ход 18.10.2026 (слепые агенты Claude и DeepSeek видели только лист; дело 6 и дело 1): значение, уже закрытое
+    маской где-то в деле, оставалось открытым в другом месте листа -- (1) ЗАГЛАВНЫМИ в строке выписки (название организации и город),
+    (2) в описании роли в перечне действующих лиц, (3) внутри составного слова или адреса (отличительное слово фирмы).
+    Последний проход по ВСЕМ строкам листа (документы, таблицы, перечень лиц, переписка): каждое значение места, фирмы, лица
+    (от 5 букв, не обычное слово законов) -- в любом регистре той же меткой; слово внутри более длинной лексемы -- вся лексема той же меткой.
+    -> число замен"""
+    pairs = []
+    for ph, v in mp.items():
+        if not str(ph).startswith(("[Ort", "[Firma", "[Person", "[Mandant", "[Ehegatt")):
+            continue
+        v = str(v).strip()
+        # место: названия городов встречаются и в законах (суды, округа), поэтому для [Ort] -- только служебные слова не трогать
+        gemein = (lambda w: _gewoehnlich(w) or anonymizer.KEEP.match(w)) if str(ph).startswith("[Ort") else (lambda w: _gesetzwort(w) or anonymizer.KEEP.match(w))
+        if len(re.sub(r"[^A-Za-zÄÖÜäöüß]", "", v)) >= 5 and not gemein(v):
+            pairs.append((v, ph))
+        for w in re.findall(r"[A-Za-zÄÖÜäöüß]{5,}", v):
+            if not gemein(w):
+                pairs.append((w, ph))
+    pairs = sorted(set(pairs), key=lambda x: -len(x[0]))
+    n = [0]
+
+    def ersetze(t):
+        if not isinstance(t, str) or len(t) < 5:
+            return t
+        for v, ph in pairs:
+            if v.lower() not in t.lower():
+                continue
+            t, k = re.subn(rf"(?i)(?<![\w\[]){re.escape(v)}(?![\w\]])", ph, t)
+            n[0] += k
+            if " " not in v:                              # внутри лексемы: «xxxxx-gmbh.de», «info@xxxxx», «XxxxxGmbH»
+                # только адрес, почта, номер или сцепка «FirmaGmbH» -- обычное сложное слово («Behörde» при районе «…hörde») не трогать
+                def _lex(m, ph=ph):
+                    tok = m.group(0)
+                    if re.search(r"[@._/-]|\d|[a-zäöüß][A-ZÄÖÜ]", tok):
+                        n[0] += 1
+                        return ph
+                    return tok
+                t = re.sub(rf"(?i)(?<![\w\[@])[\w.@-]*{re.escape(v)}[\w.@-]*(?![\w\]])", _lex, t)
+        return t
+
+    def lauf(x):
+        if isinstance(x, dict):
+            return {k: (x[k] if k in ("format", "level", "nr", "date", "kind", "art", "status", "gehoert_zu_status", "issuer_role", "annahme") else lauf(x[k])) for k in x}   # поля с фиксированными значениями схемы не трогать
+        if isinstance(x, list):
+            return [lauf(y) for y in x]
+        return ersetze(x)
+    for k in list(neu):
+        if k not in ("format", "level"):
+            neu[k] = lauf(neu[k])
+    return n[0]
+
+
 def build(docs_dir, question, level=1):
     registry = load_registry(docs_dir)
     docs, mapping, seen = [], {}, set()
@@ -1124,6 +1179,13 @@ def build(docs_dir, question, level=1):
                 ZWEIFEL[f.name] = list(entmuellen.zweifel)
         raw = clean(raw_lesbar)
         if len(raw) < 300:
+            # 19.10.2026 (замечания DeepSeek/Gemini: «нечитаемое молча выбрасывается»): документ, у которого после удаления нечитаемого
+            # осталось меньше 300 знаков, а до удаления было больше, -- в лист пометкой без содержимого: модель знает о пробеле
+            if len(clean(raw_full)) >= 300:
+                docs.append({"nr": len(docs) + 1, "kind": "nicht ausgewertet", "issuer_role": "unbekannt", "date": None, "years": [],
+                             "pages": max(1, raw_full.count("--- Seite")), "ocr_quality": 0.0,
+                             "text": "[Dokument nicht ausgewertet – Texterkennung unzuverlässig; Inhalt nicht übermittelt]"})
+                quellen[str(docs[-1]["nr"])] = f.name
             continue
         # бланк декларации: значения только на странице расчёта -- в короткий лист (без LM_DOC_LIMIT) идёт первая страница. Ошибка 11.10.2026: слово
         # «Zeile» считалось и в пометках «[Zeile nicht gelesen]», которые ставит entmuellen, -- большие пачки писем (145 и 86 страниц) обрезались до
@@ -1282,6 +1344,9 @@ def build(docs_dir, question, level=1):
         "# Вопросы по перечню действующих лиц (только для обработчика; содержит подлинные имена)\n\n"
         "Ответы -- в figuranten_entscheidungen.json: «zusammen» (одно лицо), «gehoert_zu» (лицо -> организация), «rolle», «weg» (не лицо).\n\n"
         + ("\n".join(fragen) or "вопросов нет") + "\n", encoding="utf-8")
+    n_einh = einheitlich(neu, mapping)
+    if n_einh:
+        print(f"  einheitlich: закрыто ещё {n_einh} мест (значение уже закрыто в другом месте листа)", file=sys.stderr, flush=True)
     kor = korrekturen(docs_dir)
     ROLLE_VON = (("finanzamt", "Finanzamt"), ("kasse", "Krankenkasse"), ("kanzlei", "Steuerberater"), ("bank", "Bank"), ("behörde", "Behörde"))
     for d in neu["documents"]:                           # исправления обработчика к виду, дате и отправителю документа -- до таблицы «кто кому пишет»
