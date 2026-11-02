@@ -1,6 +1,6 @@
 # Schweigepflicht-Gateway – Programmcode der Anonymisierung
 
-**Stand: 19.10.2026 (v0.2.0).** Programmcode zum Arbeitsschema [Schweigepflicht-Gateway](https://github.com/sevriukov/schweigepflicht-gateway) (DOI 10.5281/zenodo.23282323): Anonymisierung von Mandantenunterlagen durch Code, bevor ein Text an ein externes Sprachmodell geht, und Kontrolle jedes ausgehenden Textes.
+**Stand: 02.11.2026 (v0.3.0).** Programmcode zum Arbeitsschema [Schweigepflicht-Gateway](https://github.com/sevriukov/schweigepflicht-gateway) (DOI 10.5281/zenodo.23282323): Anonymisierung von Mandantenunterlagen durch Code, bevor ein Text an ein externes Sprachmodell geht, und Kontrolle jedes ausgehenden Textes.
 
 Autor: Sergei Sevriukov, LeckerMath, Dortmund · https://leckermath.de
 

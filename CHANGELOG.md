@@ -1,5 +1,21 @@
 # Änderungen
 
+## v0.3.0 – 02.11.2026
+
+Anlass: Durchläufe an nachgebildeten Akten (Imitationen A–C, 11.10.–31.10.2026) in drei Sprachen; jede Lücke, die die Kontrolle meldete oder übersah, wurde als eigene Regel geschlossen.
+
+- **Russische Namen** (`anonymizer.py`, `anon_ru.py`): Vornamenliste mit Koseformen und Fällen, Nachname neben erkanntem Vornamen, Klebungen ohne Leerzeichen aus der Texterkennung („ИмяФамилия“), kyrillische Namen in deutschen Zeilen und Tabellenzellen; Wörter aus Buchhaltungstabellen und Umgangssprache gelten nicht als Namen.
+- **Gleichwertige Schreibweisen** lateinisch/kyrillisch (deutsche, englische, ukrainische Transliteration): dieselbe Person erhält dieselbe Maske.
+- **Geburtsort** wird stets maskiert – erkannt am Signalwort davor (deutsch, russisch, englisch), nicht an einer Ortsliste.
+- **Einrichtungen:** nur der Eigenname wird maskiert, die Art bleibt („[Ort A]-Grundschule“ – wichtig etwa für § 4 Nr. 21 UStG).
+- **Texterkennung:** Verwechslungspaare (z. B. kyrillisch „Ь“ für „b“) werden nur ersetzt, wenn das Wort danach ein Wörterbuchwort ist; Bruchstücke einer IBAN nach Zeilenumbruch werden erkannt.
+- **Benutzerkennungen** im Fuß von Ausdrucken und nach „Benutzer“, „Bearbeiter“.
+- **Austauschblatt** (`exchange.py`): Fallregister der Masken je Akte; dritte Kontrollstufe in der Zusammenstellung; Tabellen aus Bank- und Buchhaltungsexporten (Gegenpartei, Kontoinhaber); Koordinaten aus Fahrtenbüchern; Datumsangaben mit Monatsnamen; Spaltenüberschriften („Item Name“) gelten nicht als Person.
+- **`anon_paket.py`:** Sicherung der vorigen Zusammenstellung vor einer neuen; Prüfung, ob ein Dokument vollständig übernommen wurde (Seitenmarken).
+- **`pruefe_oeffentlich.py`:** Name des Autors im Code ist ein Fund, der die Veröffentlichung anhält; manuell geprüfte allgemeine Wörter als Ausnahme.
+- Kommentare: Bezüge auf Akten durch „Imitation A/B/C“ ersetzt, Beispiele frei erfunden.
+- Die Module der Aktenverarbeitung (Annahme, Fallregister, dritte Kontrollstufe) sind wie bisher nicht Teil dieser Veröffentlichung; `anon_paket.py` und `exchange.py` zeigen ihre Schnittstellen.
+
 ## v0.2.0 – 19.10.2026
 
 Anlass: kritische Durchsicht des Systems durch zwei externe Sprachmodelle (DeepSeek, Gemini) am 18.10.2026.

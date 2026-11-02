@@ -130,7 +130,7 @@ KOPF = ("Sammlung kurzer Notizen und Sprachnachrichten aus den Unterlagen des Fa
 
 
 def aufraeumen(case, docs):
-    """Промежуточный текст документа, подлинник которого убран из папки дела, удаляется (имитация дела Б 16.10.2026: файл, исключённый из дела,
+    """Промежуточный текст документа, подлинник которого убран из папки дела, удаляется (имитация дела B 16.10.2026: файл, исключённый из дела,
     продолжал попадать в лист из кэша roh/ и docs/). Удаляются только файлы вида «<имя подлинника>.<расширение>.txt»; сборные и служебные остаются."""
     ext = AUDIO + TEXT + (".docx", ".xlsx", ".xlsm", ".pdf", ".jpg", ".jpeg", ".png")
     da = {safe(case, f) + ".txt" for f in files(case, ext)}
@@ -182,6 +182,12 @@ def run(*args):
 
 def build(case, frage):
     P = case / "_pipeline"
+    if (P / "dossier_anon.md").exists():                    # 31.10 (Main): снимок прежней сборки перед новой -- _pipeline перезаписывается
+        import shutil
+        ziel = case / "_analyse" / f"pipeline_{time.strftime('%Y-%m-%d_%H%M')}"
+        if not ziel.exists():
+            shutil.copytree(P, ziel)
+            print(f"   снимок прежней сборки: {ziel}", flush=True)
     docs = P / "docs"
     docs.mkdir(parents=True, exist_ok=True)
     if "--einleitung" in sys.argv:                           # вводная аудитора из любого файла (свой текст, свои заголовки)
@@ -256,6 +262,10 @@ def build(case, frage):
           + f"\n   <- ПРОВЕРИТЬ И ПОПРАВИТЬ (только для вас, с подлинными именами): {P / 'AKTEURE_VORGABE.txt'}; после правки повторить сборку")
     if frage or not (P / "frage.txt").exists():
         (P / "frage.txt").write_text(frage or FRAGE, encoding="utf-8")
+    import fallregister                                       # 31.10.2026, итерация 3: реестр дела (значения -- только в _pipeline/FALLREGISTER.json)
+    n_fr, arten_fr = fallregister.sammeln(case)
+    print(f"   реестр дела: записей {n_fr} (" + ", ".join(f"{k} {v}" for k, v in sorted(arten_fr.items())) + f"); поправить можно в {P / fallregister.DATEI}"
+          " (свои строки -- с \"quelle\": \"hand\")")
     print("5. обезличивание и обменный лист", flush=True)
     code, out = run("pipeline_case.py", str(case), "exchange")
     if code != 0:
@@ -264,8 +274,9 @@ def build(case, frage):
     print("   " + re.sub(r"; код \w+", "", erste.split("; схема:")[0]) + ("; схема: в порядке" if "схема: в порядке" in erste else "; схема: ОШИБКА"))
     if "схема: в порядке" not in erste:
         sch = erste.split("схема:")[-1].split("; код")[0].strip()
-        raise SystemExit("ОШИБКА: обменный лист не соответствует схеме -- лист НЕ готов, передавать нельзя.\n  " + sch +
-                         "\n  Это ошибка программы, а не материалов: сообщите текст этой ошибки в сессию Gesetz.")
+        hint = ("Вопрос (_pipeline/frage.txt) длиннее предела: сократите его или разбейте на несколько узких вопросов и запустите сборку снова."
+                if "question: длина" in sch else "Это ошибка программы, а не материалов: сообщите текст этой ошибки в сессию Gesetz.")
+        raise SystemExit("ОШИБКА: обменный лист не соответствует схеме -- лист НЕ готов, передавать нельзя.\n  " + sch + "\n  " + hint)
     code, out = run("pipeline_case.py", str(case), "review")
     m = re.search(r"код текста: (\S+)", out)
     stop = "ОСТАНОВЛЕНО" in out
@@ -318,7 +329,7 @@ def build(case, frage):
             probe = [r[-1] for r in t["rows"] if r and r[-1] in ("ja", "nein")]
             tb.append(f"{t['name']}: {len(t['rows'])}" + (f" / сходится {probe.count('ja')} из {len(probe)}" if probe else (" / контрольная сумма есть" if t.get("control_sum") is not None else "")))
         L.append(f"| {d['nr']} | {d['kind'][:60]} | {d['issuer_role']} | {d['pages']} | {int(100 * d['ocr_quality'])} % | {'; '.join(tb) or '—'} | {len(d['text'])} |")
-    # документ вошёл не целиком: меток страниц в тексте листа меньше, чем страниц в документе (имитация дела А 11.10.2026: три документа молча вошли одной страницей)
+    # документ вошёл не целиком: меток страниц в тексте листа меньше, чем страниц в документе (обкатка на имитации C 11.10.2026: три документа молча вошли одной страницей)
     kurz = [(d["nr"], d["pages"], d["text"].count("--- Seite"), len(d["text"])) for d in sheet["documents"]
             if d["pages"] > 1 and d["text"].count("--- Seite") < d["pages"] and d["text"] != "(siehe Tabelle)"]
     if kurz:
@@ -370,7 +381,7 @@ def release(case, code):
         raise SystemExit(f"Контроль перед передачей нашёл совпадения с подлинными данными ({len(bad)}). Передача отменена.\n"
                          "  Настоящий пропуск: python3 anon_paket.py <папка> --merke \"слово1;слово2\" [--art Person|Firma|Ort|Nummer] и повторить сборку.\n"
                          "  Ложное срабатывание (обычное слово совпало с частью имени): повторить передачу с ключом --trotzdem -- решение человека, пишется в журнал.")
-    import sekretaer                                     # третья ступень (решение автора к шагу 8, 09.10.2026): подтверждённые имена дела с допуском на искажение
+    import sekretaer                                     # третья ступень (замечание владельца проекта к шагу 8, 09.10.2026): подтверждённые имена дела с допуском на искажение
     rs = sekretaer.reste(case)
     if rs and "--trotzdem" not in sys.argv:
         raise SystemExit(f"Третья ступень контроля нашла остатки имён дела ({len(rs)}): " + "; ".join(f"документ № {n}, стр. {se}: {ar}; {kl} ({fo})" for n, se, ar, kl, fo in rs[:12]) +
@@ -408,7 +419,7 @@ def main():
         terms = [t for t in sys.argv[sys.argv.index("--merke") + 1].split(";") if t.strip()]
         art = sys.argv[sys.argv.index("--art") + 1] if "--art" in sys.argv else "Person"
         n = anonymizer.learn(terms, art, "")
-        # что именно закроет правка (имитация дела А 11.10.2026): номер документа и число мест, без самого слова
+        # что именно закроет правка (замечание по имитации C 11.10.2026): номер документа и число мест, без самого слова
         sf = case / "_pipeline" / "austausch.json"
         if sf.exists():
             sheet = json.load(open(sf, encoding="utf-8"))

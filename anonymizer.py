@@ -12,7 +12,7 @@ learn() -- обучение на проверке человеком: всё, ч
 (~/.config/leckermath/anonymizer_learned.json, вне проектов) и со следующего запуска убирается всегда; те же отметки
 копятся как размеченные примеры (…/anonymizer_corrections.jsonl) для будущего дообучения модели распознавания имён.
 
-Уровень строгости (решение автора 02.10.2026: в работе -- необходимый минимум, строгий -- по настройке):
+Уровень строгости (решение владельца проекта 02.10.2026: в работе -- необходимый минимум, строгий -- по настройке):
   1 «минимум»  -- только то, что указывает на человека или фирму: имена, названия, адреса, контакты, все номера
                   (налоговые, банковские, дел, договоров, автомобиля), дата рождения. Суммы, даты, годы остаются.
   2 «обычный»  -- плюс: суммы округляются, даты -> год, марка автомобиля убирается, числа вне налогового контекста убираются.
@@ -35,7 +35,7 @@ HARD = [
      r"elster|europa|curia|finanzamt|justiz|nrw|bayern|niedersachsen|sachsen|hessen|berlin|hamburg|bremen|saarland|thueringen|"
      r"brandenburg|sachsen-anhalt|rlp|schleswig-holstein|mv-regierung|baden-wuerttemberg|destatis|dejure|openjur)\.(?:de|eu)\b)"
      r"[a-z0-9][\w-]*(?:\.[\w-]+)*\.(?:de|com|net|org|eu|info|biz|at|ch|io|ru|nl|pl|tr|it|fr|uk|online|shop|gmbh)\b(?:/[^\s<>\"\]\)]*)?", "Link"),
-    # учётная запись сотрудника в подвале распечатки («Währung: EUR vorname.nachname Seite 1») и после слов «Benutzer», «Bearbeiter» -- имитация дела А 08.10.2026
+    # учётная запись сотрудника в подвале распечатки («Währung: EUR vorname.nachname Seite 1») и после слов «Benutzer», «Bearbeiter» -- остаток Салона 08.10.2026
     (r"(?<=Währung: EUR )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}", "Kennung"),
     (r"(?<![\w@/.])[A-Za-zÄÖÜäöüß]{2,}\.[a-zäöüß]{3,}(?= Seite \d)", "Kennung"),
     (r"(?<=Benutzer: )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}|(?<=Benutzer )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}|(?<=Bearbeiter: )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}|(?<=Kennung: )[A-Za-zÄÖÜäöüß]{2,}\.[A-Za-zÄÖÜäöüß]{3,}", "Kennung"),
@@ -120,7 +120,7 @@ def learn(terms, kind="Person", context=""):
 
 
 # ---------------------------------------------------------------- русский и английский текст (08.10.2026)
-# Автор: «работать буду однозначно с русскими, английскими и немецкими источниками». Немецкая модель имён русских и английских имён
+# Владелец проекта: «работать буду однозначно с русскими, английскими и немецкими источниками». Немецкая модель имён русских и английских имён
 # не видит; для них -- свои модели (локальные, spaCy) и свои правила. Отключить: LM_ANON_MEHRSPRACHIG=0 (для сравнения в замерах).
 _NLP_X = {}
 _KYR = re.compile(r"[А-Яа-яЁё]")
@@ -198,7 +198,8 @@ def _ru_namensteile(t, kind):
     gut = []
     for w in t.split():
         kern = w.strip("«»\"',.;:()")
-        if not kern or not re.fullmatch(r"[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?|[А-ЯЁ]\.|[А-ЯЁ]{2,6}", kern) or RU_KEEP.match(kern):
+        if not kern or not re.fullmatch(r"[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?|[А-ЯЁ]\.|[А-ЯЁ]{2,6}", kern) or RU_KEEP.match(kern) \
+                or kern.casefold() in RU_GEMEIN:                  # 31.10, итерация 3: «Приват Аня» -> только «Аня» (вид занятия -- не часть имени)
             if kind == "Firma" and gut and re.fullmatch(r"[«»\"А-ЯЁа-яё-]+", w):      # «ООО „Северный ветер“»: внутри названия допускаются любые слова
                 gut.append(w)
             continue
@@ -233,7 +234,7 @@ def _ersetze(out, val, ph):
 
 def _zellen(t):
     """Строки таблицы (CSV: от трёх запятых) -- запятые и кавычки заменены переводом строки той же длины, чтобы модель распознавания
-    видела ячейки по отдельности: иначе «Q3 2024,,Yes,,Yes» и «Datum,Datum,Generalkonsulat Der» становятся «лицами» (имитация дела Б 16.10.2026).
+    видела ячейки по отдельности: иначе «Q3 2024,,Yes,,Yes» и «Datum,Datum,Generalkonsulat Der» становятся «лицами» (имитация дела B 16.10.2026).
     Смещения символов не меняются."""
     return re.sub(r"(?m)^[^\n]*(?:,(?! )[^\n]*){3,}$", lambda m: re.sub(r'[,"]', "\n", m.group(0)), t)      # в таблице после запятой нет пробела, в связном тексте -- есть
 
@@ -272,6 +273,8 @@ def _mehrsprachig(out, tag, ner):
                 if len(t) <= 2 or not _KYR.search(t) or "[" in t or "]" in t or "\n" in t or RU_KEEP.match(t.split()[0]):
                     continue
                 kind = {"PER": "Person", "ORG": "Firma", "LOC": "Ort"}.get(ent.label_)
+                if kind == "Person" and " " not in t and (t[:1].islower() or t.casefold() in RU_GEMEIN):
+                    continue                # 31.10.2026: одно слово строчными или из учётной таблицы («приват», «аренда») -- не лицо (имена строчными ловит список)
                 if kind and (ner != "per" or kind == "Person"):
                     t = _ru_namensteile(t, kind)
                     if len(t) > 2:
@@ -294,11 +297,11 @@ def _mehrsprachig(out, tag, ner):
                         t = para[ent.start_char:ent.end_char].strip(" \"',.;:()")
                         if re.search(r"\d", t) and ent.label_ == "PERSON" or "\n" in _mp[ent.start_char:ent.end_char].strip() or (ent.label_ == "ORG" and " " not in t and _de_wort(t)):
                             continue
-                        if len(t) <= 2 or "[" in t or "]" in t or "\n" in t or _KYR.search(t) or EN_KEEP.match(t.split()[0]) or KEEP.match(t.split()[0]):
+                        if len(t) <= 2 or "[" in t or "]" in t or "\n" in t or _KYR.search(t) or EN_KEEP.match(t.split()[0]) or KEEP.match(t.split()[0]) or all(w in FACHWORT for w in t.split()):
                             continue
                         kind = {"PERSON": "Person", "ORG": "Firma", "GPE": "Ort", "LOC": "Ort", "FAC": "Ort"}.get(ent.label_)
                         if kind and re.search(r"(?i)\b(?:name|number|date|amount|item|account|holder|client|supplier|total|vat|code|type|status|price|quantity|description)\b", t):
-                            continue                # заголовок столбца таблицы («Item Name» -> «лицо», затем слово «Name» закрывалось во всех заголовках; имитация дела Б 16.10.2026)
+                            continue                # заголовок столбца таблицы («Item Name» -> «лицо», затем слово «Name» закрывалось во всех заголовках; имитация дела B 16.10.2026)
                         if kind and (ner != "per" or (kind == "Person" and " " in t)):
                             found.append((re.sub(r"^(?:Mr|Mrs|Ms|Miss|Dr|Prof)\.?\s+", "", t), kind))
     for v, kind in sorted(set(found), key=lambda x: -len(x[0])):
@@ -324,12 +327,69 @@ AZ_GERICHT = (r"(?<![\w/.-])(?:[IVX]{1,4}|\d{1,3}) ?(?:K|V|R|B|S|E|U|Ko|BvR|BvL|
 GERICHT_NAME = (r"\b(?:BFH|BVerfG|BGH|BSG|BAG|BVerwG|EuGH|Bundesfinanzhof|Bundesverfassungsgericht|Bundesgerichtshof|Bundessozialgericht|"
                 r"(?:FG|Finanzgericht|LSG|Landessozialgericht|SG|Sozialgericht|OLG|Oberlandesgericht|LG|Landgericht|VG|OVG|VGH|Verwaltungsgericht)"
                 r"(?:\s+(?:des\s+Landes\s+|für\s+das\s+Land\s+)?[A-ZÄÖÜ][\wäöüß]+(?:[- ][A-ZÄÖÜ][\wäöüß]+)?)?)")
+HOMOGLYPH_LOG = []                                  # (было, стало) по всем вызовам anonymize; сборка обнуляет и пишет протокол в папку дела
 _UNSICHTBAR = re.compile("[\u00ad\u200b-\u200f\u2060-\u2064\ufeff\u034f\u180e]")
 _KYR_LAT = str.maketrans("АВЕКМНОРСТХаеорсухіјѕ", "ABEKMHOPCTXaeopcyxijs")
 _LAT_KYR = str.maketrans("ABEKMHOPCTXaeopcyx", "АВЕКМНОРСТХаеорсух")
+# 31.10.2026, итерация 4: двойники распознавания (OCR), которых нет среди одинаковых по виду букв: «Ьis» = «bis», «Befбrderung» = «Beförderung»,
+# «zurйckgelegten» = «zurückgelegten», «giЫ» = «gibt»? -- такие пары не однозначны, поэтому замена принимается только если слово
+# целиком стало словарным (de_wortliste, служебные слова spaCy, немецкое сложное слово). Таблица UTS #39 (confusables) в venv нет
+# (пакета confusable_homoglyphs нет); одинаковые по виду буквы -- _KYR_LAT, двойники распознавания -- здесь.
+_OCR_KYR = {"Ь": "b", "ь": "b", "Ъ": "b", "ъ": "b", "б": "ö6b", "Б": "B6", "Ы": ["bl", "bI", "Bl", "bt"], "ы": ["bl", "bi"], "ё": "äöëe", "Ё": "ÄÖË",
+            "й": "üu", "Й": "ÜU", "и": "un", "И": "UN", "п": "n", "П": "n", "л": "nl", "Л": "JI", "н": "nh", "щ": ["m", "w", "ш"], "ш": "w", "Ш": "W",
+            "г": "r", "Г": "r", "к": "k", "т": "mt", "Т": "T", "д": "gd", "Д": "D", "в": "Bb", "З": "3", "з": "3", "ц": "u", "ч": "4", "я": "a", "Я": "R",
+            "ю": "io", "ж": "x", "ф": "o", "у": "y", "ч": "y"}
+_STOP_DE = []
 
 
-def vorbereiten(text):
+def _dt_wort(w):
+    """Немецкое слово: словарь базы права, служебное слово spaCy, сложное слово из двух слов словаря."""
+    if not _STOP_DE:
+        try:
+            from spacy.lang.de.stop_words import STOP_WORDS
+            _STOP_DE.append({x.casefold() for x in STOP_WORDS})
+        except Exception:
+            _STOP_DE.append(set())
+    wl = w.casefold()
+    return wl in _STOP_DE[0] or (len(wl) >= 4 and (_de_wort(wl) or _de_kompositum(wl)))
+
+
+def homoglyph_wort(w):
+    """Слово из букв обоих алфавитов -> одним алфавитом. Чисто кириллическое и чисто латинское не трогается.
+    1) одинаковые по виду буквы -- в сторону алфавита, которого в слове больше (как с 19.10.2026);
+    2) если в латинском по большинству слове остались кириллические буквы -- двойники распознавания (_OCR_KYR), только если всё слово
+       стало немецким словом; 3) кириллическое по большинству слово, которое целиком латиницей -- немецкое слово («ипd» -> «und»), -- латиницей."""
+    import itertools
+    kyr = sum("\u0400" <= c <= "\u04ff" for c in w)
+    lat = sum(c.isalpha() and not ("\u0400" <= c <= "\u04ff") for c in w)
+    if not kyr or not lat:
+        return w
+    if lat >= kyr:
+        v = w.translate(_KYR_LAT)
+    else:
+        v = w.translate(_LAT_KYR)
+        if not any("a" <= c.lower() <= "z" for c in v):
+            return v
+    rest = [i for i, c in enumerate(v) if "\u0400" <= c <= "\u04ff"]
+    if not rest or len(rest) > 4:
+        return v
+    if lat < kyr:                                   # кириллица по большинству: латинское прочтение принимается только как немецкое слово
+        v = w.translate(_KYR_LAT)
+        rest = [i for i, c in enumerate(v) if "\u0400" <= c <= "\u04ff"]
+    wahl = [list(_OCR_KYR.get(v[i], "")) if isinstance(_OCR_KYR.get(v[i], ""), str) else _OCR_KYR[v[i]] for i in rest]
+    if not all(wahl):
+        return w.translate(_KYR_LAT) if lat >= kyr else w.translate(_LAT_KYR)
+    for komb in itertools.islice(itertools.product(*wahl), 256):
+        z = list(v)
+        for i, r in zip(rest, komb):
+            z[i] = r
+        kand = "".join(z)
+        if not re.search("[\u0400-\u04ff]", kand) and _dt_wort(kand):
+            return kand
+    return w.translate(_KYR_LAT) if lat >= kyr else w.translate(_LAT_KYR)
+
+
+def vorbereiten(text, log=None):
     """19.10.2026 (атаки на обезличиватель, замечания DeepSeek/Gemini): привести текст к одному виду ДО всех правил, чтобы имя
     нельзя было спрятать от них: NFKC (полноширинные и составные знаки), без невидимых знаков (U+200B…, мягкий перенос),
     слова из смеси латиницы и кириллицы -> одним письмом (буквы-двойники -- по большинству букв слова),
@@ -341,11 +401,10 @@ def vorbereiten(text):
 
     def _schrift(m):
         w = m.group(0)
-        kyr = sum("\u0400" <= c <= "\u04ff" for c in w)
-        lat = sum(c.isascii() and c.isalpha() for c in w)
-        if not kyr or not lat:
-            return w
-        return w.translate(_KYR_LAT) if lat >= kyr else w.translate(_LAT_KYR)
+        neu = homoglyph_wort(w)
+        if neu != w and log is not None:
+            log.append((w, neu))
+        return neu
     t = re.sub(r"[\w\u0400-\u04ff]+", _schrift, t)
     t = re.sub(r"(?<=[a-zäöüß])-[ \t]*\n[ \t]*(?!(?:und|oder|bzw|sowie|bis)\b)(?=[a-zäöüß])", "", t)
     t = re.sub(r"(?<![\w.])(?:[A-Za-zÄÖÜäöüß] ){3,}[A-Za-zÄÖÜäöüß](?![\w])",
@@ -353,11 +412,224 @@ def vorbereiten(text):
     return t
 
 
+# 31.10.2026 (имитация дела A, прогон 29.10: 211 текстов, контроль остановил, но четыре класса утечек он не назвал) — отдельная ступень
+# после повторных упоминаний, на всех уровнях: (а) имена кириллицей в немецком документе и в ячейках таблиц (xlsx -> CSV: «Катя», «Даша»),
+# (б) склейка распознавания «ИмяФамилия» без пробела, (в) обрывки IBAN («DE48D», «DE9610» — номер разорван переносом), (г) школы и учреждения
+# («…-Grundschule» указывает на место). Ложные тревоги того же прогона — термины спорта и балета (FACHWORT).
+RU_VORNAMEN = set("""Александр Саша Шура Алексей Лёша Леша Анатолий Толя Андрей Андрюша Антон Тоша Аркадий Артём Артем Тёма Борис Боря Вадим Валентин Валя
+Валерий Валера Василий Вася Виктор Витя Виталий Владимир Володя Вова Владислав Влад Вячеслав Слава Геннадий Гена Георгий Жора Гоша Глеб Григорий Гриша
+Даниил Даня Денис Дмитрий Дима Евгений Женя Егор Иван Ваня Игорь Илья Кирилл Константин Костя Леонид Лёня Максим Макс Матвей Михаил Миша Никита Николай Коля
+Олег Павел Паша Пётр Петр Петя Роман Рома Руслан Сергей Серёжа Сережа Станислав Стас Степан Тимофей Тимур Фёдор Федор Федя Юрий Юра Ярослав
+Александра Алёна Алена Алиса Алина Алла Анастасия Настя Ангелина Анна Аня Анюта Арина Ариша Валентина Валерия Лера Варвара Варя Вера Вероника Ника Виктория Вика
+Галина Галя Дарья Даша Диана Ева Евгения Екатерина Катя Катюша Елена Лена Леночка Елизавета Лиза Жанна Злата Зоя Инна Ирина Ира Карина Кира Кристина Ксения Ксюша
+Лариса Лара Лидия Лида Любовь Люба Людмила Люда Мила Маргарита Рита Марго Марина Мария Маша Машенька Милана Надежда Надя Наталья Наталия Наташа Нина Оксана Ольга Оля
+Полина Поля Раиса Света Светлана Снежана София Софья Соня Тамара Татьяна Таня Ульяна Уля Эвелина Юлия Юля Яна Янка Ясмина Валюша Олеся Василиса Мирослава Милена
+Богдана Майя Вита Агата Есения Эмилия Нелли Инга Регина Эльвира Ярослава Ярина Таисия Тая Аришка Дашенька Катенька Сонечка Варенька Анечка Ариночка Алисочка
+Маргоша Кристя Эмили Ева Стефания Стеша Таисья Мирра Амелия Аделина Ульянка Лерочка Викуся Настенька Лизонька""".split())
+# совпадают с обычными словами (вера, надежда, любовь, слава, роман, майя/мая, ника…) -- только с заглавной буквы и не в начале предложения
+RU_VORNAMEN_MEHRDEUTIG = {"Вера", "Надежда", "Любовь", "Слава", "Роман", "Майя", "Ника", "Мила", "Лада", "Ева", "Влад", "Макс", "Злата", "Вита", "Агата",
+                          "Марина", "Регина", "Инна", "Лера", "Рита", "Нина", "Лида", "Люба", "Тая", "Мирра", "Кира", "Поля"}
+LAT_VORNAMEN = set("""Lena Katja Katia Dasha Dascha Jana Yana Lara Arisha Alisa Valja Uljana Ulyana Olga Olja Irina Ira Natascha Natasha Tanja Tatjana Swetlana
+Svetlana Svitlana Oksana Mascha Masha Marija Anja Sonja Polina Nastja Nastia Ksenia Xenia Wika Vika Julia Julija Alina Arina Vera Nina Galina Ljuba Ljudmila
+Sascha Sasha Dima Dmitri Mischa Misha Kolja Wanja Vanja Serjoscha Andrej Alexej Sergej Sergei Juri Jurij Igor Oleg Pawel Pavel Maxim Kirill Stanislaw Stanislav
+Taisia Emilia Margo Kristina Warja Varya Varja Liza Lisa Alisa Uljana""".split())
+# частые немецкие фамилии, которые не совпадают с обычными словами (Müller, Koch, Richter, Klein … — совпадают, их здесь нет)
+DE_NACHNAMEN = {"Schmidt", "Schmitt", "Schulz", "Schulze", "Meyer", "Meier", "Mayer", "Maier", "Hoffmann", "Schröder", "Neumann", "Zimmermann", "Krüger",
+                "Hartmann", "Krause", "Lehmann", "Köhler", "Kowalski", "Kowalska", "Nowak", "Lewandowski"}
+# слова учётных таблиц и разговорные -- не имена (31.10, второй прогон имитации дела A: русская модель имён закрывала их как лиц)
+RU_GEMEIN = set("""приват интенсив индив индивидуально аренда тикет малышка малышки новенькая новенький сестрички сестры подарок лимит доп суббота воскресенье
+понедельник вторник среда четверг пятница январь февраль март апрель май июнь июль август сентябрь октябрь ноябрь декабрь января февраля марта апреля мая июня
+июля августа сентября октября ноября декабря конечно единственное спасибо привет хорошо оплата оплачено долг группа занятие занятия тренировка тренер
+итого сумма наличные перевод скидка абонемент пробное""".split())
+FACHWORT = set("""Spagat Pirouette Pirouetten Passé Passe Chainé Chaine Chainés Plié Plie Relevé Releve Tendu Jeté Jete Arabesque Attitude Battement Fouetté Fouette
+Grand Petit Port Bras Sauté Saute Glissade Assemblé Assemble Échappé Echappe Rond Jambe Keule Keulen Reifen Band Ball Seil Barre Pointe Spitze Berliner
+Sport Turnen Gymnastik Rhythmische Akrobatik Flickflack Radschlag Rolle Brücke Kerze Handstand Choreografie Choreographie Kür Pflicht""".split())
+_TYP = (r"(?:Grundschule|Gesamtschule|Realschule|Hauptschule|Sekundarschule|Förderschule|Gemeinschaftsschule|Gymnasium|Berufskolleg|Berufsschule|Schule|"
+        r"Kita|KiTa|Kindergarten|Kindertagesstätte|Familienzentrum|Sporthalle|Turnhalle|Schwimmhalle|Mehrzweckhalle|Halle|Ballettschule|Tanzschule|Musikschule|"
+        r"Grundschulverbund|Hochschule|Universität|Klinik|Krankenhaus|Seniorenheim|Pflegeheim|Sportverein|Verein|Studio|Sportzentrum|Zentrum|"
+        r"School|Academy|Akademie|College|Club)")   # 31.10: английские виды («… RG School» -- имя школы, вид остаётся)
+# видовые части слитного названия учреждения («Leistungssportschule» -- вид, важен для § 4 Nr. 21 UStG; не маскируется)
+TYP_VORSILBE = re.compile(r"(?i)^(?:leistungssport|sport|musik|tanz|ballett|volkshoch|berufs|fach|grund|haupt|real|gesamt|förder|sekundar|gemeinschafts|hoch|"
+                          r"fahr|abend|privat|sprach|kunst|ganztags|gesundheits|kranken|pflege|alten|ausbildungs|fortbildungs|wirtschafts|kinder|jugend|"
+                          r"turn|schwimm|mehrzweck|stadt|kreis|landes|bundes|gemeinde|europa|international|tages|kampfsport)+$")
+RX_IBAN_REST = (r"(?<![\w\[])(?:DE|AT|CH|NL|BE|LU|FR|IT|ES|PL|CZ|UA|LT|LV|EE|ДЕ)\d{2}[A-Z0-9]{0,4}"
+                r"(?:[ ](?=[A-Z0-9]*\d)[A-Z0-9]{1,4}){0,7}(?![\w\]])")
+_RU_ENDUNG = ("", "а", "я", "у", "ю", "е", "и", "ы", "ой", "ей", "ою", "ею", "ом", "ем", "ам", "ям", "ами", "ями", "ах", "ях", "ке", "ки", "ку", "кой")
+
+
+def _ru_vorname(tok):
+    """Слово -- русское имя из списка: в любом регистре («яна», «ВАря»), с падежным окончанием, со склеенными заглавными («КатяРР»).
+    Имена, совпадающие с обычными словами, -- только с заглавной первой буквой. -> имя из списка или None"""
+    kern = re.sub(r"[А-ЯЁ]{1,4}$", "", tok) if re.search(r"[а-яё][А-ЯЁ]{1,4}$", tok) else tok          # «КатяРР» -> «Катя»
+    k = kern.casefold()
+    for n in RU_VORNAMEN:
+        nf = n.casefold()
+        stamm = nf[:-1] if nf[-1] in "аяйь" else nf
+        if k == nf or (k.startswith(stamm) and k[len(stamm):] in _RU_ENDUNG and len(k) > len(stamm)):
+            if n in RU_VORNAMEN_MEHRDEUTIG and not kern[:1].isupper():
+                continue
+            return n
+    return None
+
+
+# 31.10.2026, итерация 3 (имитация дела A: «geboren am [Geburtsdatum] in <город>» -- место рождения открыто во всех трёх прогонах, 31 место):
+# место рождения -- всегда Ort, по слову-признаку перед ним (немецкий, русский, английский), а не по списку городов
+_ORT_WORT = r"[A-ZÄÖÜА-ЯЁ][a-zäöüßа-яё]{2,}(?:-[A-ZÄÖÜА-ЯЁ][a-zäöüßа-яё]{2,})?"
+_GEBURTSORT = [
+    r"(?i:\bgeboren|\bgeb\.|\bborn)(?:(?!\bin\b)[^\n;]){0,45}?\bin\s+(?:der\s+Stadt\s+)?",     # «geboren am [Geburtsdatum A] in X», «geb. 1975 in X» (первое «in»)
+    r"(?i:\bGeburtsort|\bplace of birth|\bbirthplace)\s*(?:[:\-–]\s*|\s)",           # «Geburtsort: X»
+    r"(?i:\bродил(?:ся|ась|ись))(?:(?!(?<!\w)в\s)[^\n;]){0,40}?(?<!\w)в\s+(?:г\.\s*|городе\s+)?",     # «родилась 13.12.1975 в X» (первое «в»)
+    r"(?i:\bместо\s+рождения)\s*(?:[:\-–]\s*|\s)(?:г\.\s*|город\s+)?",              # «место рождения: X»
+]
+
+
+def geburtsort(out, tag):
+    """Место рождения после слова-признака -> [Ort]. Уже поставленная метка и слово со строчной буквы («in der Ukraine») не трогаются."""
+    for rx in _GEBURTSORT:
+        out = re.sub(rf"({rx})({_ORT_WORT})(?![\w\]])", lambda m: m.group(1) + (m.group(2) if KEEP.match(m.group(2)) else tag("Ort", m.group(2))), out)
+    return out
+
+
+# 31.10.2026, итерация 3: равнозначность написаний латиницей и кириллицей («Hannover» = «Ганновер», «Elena» = «Елена», «Musterowa» = «Мустеровой»).
+# Не таблица готовых пар, а образец: каждая буква -- все принятые передачи (немецкая, английская, украинская транслитерация).
+_L2K = [("tsch", "ч"), ("shch", "щ"), ("sch", "ш"), ("sh", "ш"), ("ch", "(?:х|ш|ч|к)"), ("zh", "ж"), ("kh", "х"), ("ts", "ц"), ("tz", "ц"), ("ck", "к"), ("ph", "ф"),
+        ("th", "т"), ("ei", "(?:ай|ей)"), ("eu", "(?:ой|ей)"), ("ie", "(?:и|ие)"), ("ja", "(?:я|ья|йа)"), ("ju", "(?:ю|ью)"), ("jo", "(?:ё|йо|е|ьо)"), ("ya", "(?:я|ья)"),
+        ("yu", "(?:ю|ью)"), ("yo", "(?:ё|йо)"), ("ia", "(?:ия|иа|я)"), ("iu", "(?:ию|ю)"), ("ii", "(?:ий|ии|и)"),
+        ("a", "а"), ("b", "б"), ("c", "(?:к|ц)"), ("d", "д"), ("e", "(?:е|э)"), ("f", "ф"), ("g", "г"), ("h", "(?:г|х)?"), ("i", "(?:и|й|і)"), ("j", "(?:й|ж|дж)"),
+        ("k", "к"), ("l", "ль?"), ("m", "м"), ("n", "н"), ("o", "о"), ("p", "п"), ("q", "к"), ("r", "р"), ("s", "(?:с|з)"), ("t", "т"), ("u", "(?:у|ю)"),
+        ("v", "(?:в|ф)"), ("w", "в"), ("x", "кс"), ("y", "(?:и|й|ы)"), ("z", "(?:ц|з)"), ("ä", "(?:е|э|а)"), ("ö", "(?:е|ё|о)"), ("ü", "(?:ю|у|и)"), ("ß", "с")]
+_K2L = {"а": "a", "б": "b", "в": "(?:v|w)", "г": "(?:g|h)", "д": "d", "е": "(?:e|je|ye)", "ё": "(?:jo|yo|e|o)", "ж": "(?:zh|sch|j|g|s)", "з": "(?:z|s)",
+        "и": "(?:i|y|ij)", "й": "(?:j|y|i)?", "к": "(?:k|c|ck)", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "(?:s|ss|z)", "т": "t",
+        "у": "(?:u|ou)", "ф": "(?:f|ph|v)", "х": "(?:ch|kh|h)", "ц": "(?:ts|tz|z|c)", "ч": "(?:ch|tsch|tch|cz)", "ш": "(?:sch|sh|ch|sz)", "щ": "(?:sch|shch|sh)",
+        "ъ": "", "ы": "(?:y|i)", "ь": "", "э": "e", "ю": "(?:ju|yu|iu|u)", "я": "(?:ja|ya|ia|a)", "і": "i", "ї": "(?:ji|yi|i)", "є": "(?:je|ye|e)"}
+
+
+def translit_muster(w):
+    """Образец того же слова в другом алфавите (без границ слова, без окончаний), или None. Удвоенные согласные -- одна или две."""
+    w = w.casefold()
+    if re.fullmatch(r"[a-zäöüß]{3,}", w):
+        w = re.sub(r"([bcdfgklmnprstz])\1", r"\1", w)
+        out, i = [], 0
+        while i < len(w):
+            for lat, kyr in _L2K:
+                if w.startswith(lat, i):
+                    out.append(f"(?:{kyr})+" if lat in ("n", "l", "m", "r", "s", "t", "k", "p", "f", "b", "d", "g") else kyr)
+                    i += len(lat)
+                    break
+            else:
+                return None
+        return "".join(out)
+    if re.fullmatch(r"[а-яёіїє]{3,}", w):
+        out = []
+        for c in w:
+            lat = _K2L.get(c)
+            if lat is None:
+                return None
+            out.append(f"(?:{lat})+" if c in "нлмрстпкфбдг" else lat)
+        return "".join(out)
+    return None
+
+
+def _luecken_31_10(out, tag, mapping):
+    """Ступень 31.10.2026 (см. комментарий выше; вторая итерация того же дня). Возвращает текст."""
+    # учреждение, уже закрытое моделью целиком («[Ort A]» = «Muster-Gymnasium», «[Firma A]» = «Private Muster-Sportschule»):
+    # вид возвращается в текст, закрывается только собственное имя; если собственного имени нет -- метка снимается
+    allg = {"private", "privat", "staatliche", "staatlich", "städtische", "städtisch", "und", "der", "die", "das", "des", "für", "freie", "evangelische", "katholische"}
+    for ph, val in list(mapping.items()):
+        if not str(ph).startswith(("[Ort", "[Firma")) or not isinstance(val, str) or ph not in out:
+            continue
+        m = re.match(rf"^(.*?)(-?)({_TYP}|[A-ZÄÖÜ][a-zäöüß]*(?:schule|gymnasium|kita|halle))$", val.strip())
+        if not m:
+            continue
+        vor, typ = m.group(1).strip(" -"), m.group(3)
+        typ_vor = re.match(r"^([A-ZÄÖÜ][a-zäöüß]*?)(schule|gymnasium|kita|halle)$", typ)
+        typ_allg = not typ_vor or TYP_VORSILBE.match(typ_vor.group(1)) or _de_wort(typ)
+        teile = [w for w in re.split(r"[\s]+", vor) if w]
+        if typ_allg and all(w.strip("-").casefold() in allg or TYP_VORSILBE.match(w.strip("-")) or _de_wort(w.strip("-")) for w in teile):
+            out = out.replace(ph, val)                                  # всё -- видовые слова: метку снять
+            del mapping[ph]
+        elif typ_allg and vor:
+            out = out.replace(ph, tag("Ort", vor) + (m.group(2) or " ") + typ)
+    # 31.10 (прогон 4): модель закрыла сам вид («School» -> [Person]), а имя школы перед ним осталось открытым -- вид вернуть,
+    # затем закрыть имя перед видом через пробел («A-B RG School» -> «[Ort] School»); общие слова перед видом не закрываются
+    for ph, val in list(mapping.items()):
+        if str(ph).startswith("[Person") and isinstance(val, str) and re.fullmatch(_TYP, val.strip()) and ph in out:
+            out = out.replace(ph, val.strip())
+            del mapping[ph]
+    allg_en = {"rhythmic", "gymnastics", "sport", "sports", "dance", "music", "ballet", "art", "arts", "private", "international", "the", "of", "and", "for", "high", "primary"}
+    def _vor_typ(m):
+        teile = m.group(1).split()
+        while teile and (teile[0].casefold() in allg | allg_en or _de_wort(teile[0]) or TYP_VORSILBE.match(teile[0])):
+            teile.pop(0)
+        if not teile or all(w.casefold() in allg_en or _de_wort(w) or TYP_VORSILBE.match(w) for w in teile):
+            return m.group(0)
+        name = " ".join(teile)
+        return m.group(1)[:m.group(1).find(name)] + tag("Ort", name) + " " + m.group(2)
+    out = re.sub(r"(?<![\w\[\]])((?:[A-ZÄÖÜ0-9][\w&.-]*\s+){1,4}?)(School|Academy|Akademie|College|Club)\b", _vor_typ, out)
+    out = re.sub(RX_IBAN_REST, lambda m: tag("IBAN", m.group(0)), out)                              # (в) обрывки IBAN
+    # (г) учреждения: маскируется только собственное имя, вид остаётся («[Ort A]-Grundschule», «Grundschule am [Ort B]», «Sporthalle „[Ort C]“»)
+    out = re.sub(rf"(?<![\w\[])((?:[A-ZÄÖÜ][\wäöüß]+-)+)({_TYP})\b",
+                 lambda m: m.group(0) if TYP_VORSILBE.match(m.group(1).replace("-", "")) else tag("Ort", m.group(1).rstrip("-")) + "-" + m.group(2), out)
+    out = re.sub(rf"\b({_TYP})(\s+(?:am|an der|an den|im|in der|auf dem|Am|An der|Im)\s+)([A-ZÄÖÜ][\wäöüß-]+)",
+                 lambda m: m.group(1) + m.group(2) + tag("Ort", m.group(3)), out)
+    out = re.sub(rf"\b({_TYP})(\s*)([„\"«‚])([^“”\"»‘’\n\[\]]{{2,40}})([“”\"»‘’])", lambda m: m.group(1) + m.group(2) + m.group(3) + tag("Ort", m.group(4)) + m.group(5), out)
+    def _wort(m):
+        vor, typ = m.group(1), m.group(2)
+        if TYP_VORSILBE.match(vor) or _de_wort(m.group(0)) or _de_wort(vor):
+            return m.group(0)
+        return tag("Ort", vor) + typ
+    out = re.sub(r"(?<![\w\[-])([A-ZÄÖÜ][a-zäöüß]{3,}?)(grundschule|gesamtschule|realschule|hauptschule|schule|gymnasium|kita|halle)\b", _wort, out)
+    # (а) русские имена: по списку, в любом регистре, с падежами и склейками -- в любой строке
+    def _tok(m):
+        t = m.group(0)
+        return tag("Person", t) if _ru_vorname(t) else t
+    out = re.sub(r"(?<![\w\[])[А-ЯЁа-яё]{2,20}(?![\w\]])", _tok, out)
+    # фамилия рядом с найденным именем: слово с заглавной сразу после метки лица; перед меткой -- только с фамильным окончанием
+    def _nach(m):
+        w = m.group(2)
+        if w.casefold() in RU_GEMEIN or RU_KEEP.match(w) or str(mapping.get(m.group(1), "")).rstrip().endswith(".") \
+                or re.search(r"(?:ли|ла|ло|ть|ться|ет|ит|ут|ют|ят|ем|им|ешь|ишь|сь|ся|те)$", w):     # инициалы с точкой -- конец фразы; глагол -- не фамилия
+            return m.group(0)
+        return m.group(1) + " " + tag("Person", w)
+    out = re.sub(r"(\[Person [^\]\n]{1,6}\])[ \t]+([А-ЯЁ][а-яё]{2,}(?:-[А-ЯЁ][а-яё]+)?)(?![\w\]])", _nach, out)
+    out = re.sub(r"(?<![\w\[])([А-ЯЁ][а-яё]+(?:ова|ева|ина|ская|цкая|ов|ев|ин|ский|цкий|енко|ук|юк|ич|ян))[ \t]+(?=\[Person )",
+                 lambda m: tag("Person", m.group(1)) + " ", out)
+    # кириллическое слово с заглавной внутри НЕМЕЦКОЙ строки (кириллицы в строке < 30 % букв) -- имя (вставка в немецкий текст)
+    def _zeile(z):
+        zl = z.group(0)
+        b = re.findall(r"[A-Za-zÄÖÜäöüßА-Яа-яЁё]", zl)
+        if not b or sum(1 for c in b if _KYR.match(c)) >= 0.3 * len(b):
+            return zl
+        return re.sub(r"(?<![\w\[])[А-ЯЁ][а-яё]{1,14}(?:-[А-ЯЁ][а-яё]+)?(?![\w\]])",
+                      lambda m: m.group(0) if RU_KEEP.match(m.group(0)) or m.group(0).casefold() in RU_GEMEIN else tag("Person", m.group(0)), zl)
+    out = re.sub(r"(?m)^[^\n]+$", _zeile, out)
+    # падежи уже найденных лиц (кириллица): основа каждого слова имени + до четырёх букв окончания, в т.ч. ПРОПИСНЫМИ
+    for ph, val in list(mapping.items()):
+        if not str(ph).startswith("[Person") or not isinstance(val, str):
+            continue
+        for w in val.split():
+            if re.fullmatch(r"[А-ЯЁ][а-яё]{3,}", w):
+                st = re.sub(RU_ENDE, "", w)
+                if len(st) >= 4:
+                    out = re.sub(rf"(?<![\w\[]){re.escape(st)}[а-яё]{{0,4}}(?![\w\]])", ph, out)
+                    out = re.sub(rf"(?<![\w\[]){re.escape(st.upper())}[А-ЯЁ]{{0,4}}(?![\w\]])", ph, out) if len(st) >= 5 else out
+    # латинские: имена из списка и частые фамилии, не совпадающие с обычными словами
+    out = re.sub(r"(?<![\w\[])[A-ZÄÖÜ][a-zäöüß]{2,}(?![\w\]])", lambda m: tag("Person", m.group(0)) if m.group(0) in LAT_VORNAMEN or m.group(0) in DE_NACHNAMEN else m.group(0), out)
+    # (б) склейка «ИмяФамилия» / «ФамилияИмя»: часть -- уже найденное имя лица или имя из списка
+    teile = {p.strip(",.;:()").casefold() for k, v in mapping.items() if k.startswith("[Person") and isinstance(v, str) for p in v.split() if len(p.strip(",.;:()")) > 2}
+    teile |= {v.casefold() for v in LAT_VORNAMEN | RU_VORNAMEN}
+    def _klebe(m):
+        a, b = m.group(1), m.group(2)
+        return tag("Person", m.group(0)) if a.casefold() in teile or b.casefold() in teile else m.group(0)
+    out = re.sub(r"(?<![\w\[])([A-ZÄÖÜА-ЯЁ][a-zäöüßа-яё]{2,})([A-ZÄÖÜА-ЯЁ][a-zäöüßа-яё]{2,})(?![\w\]])", _klebe, out)
+    return out
+
+
 def anonymize(text, level=None, ner="all"):
     """ner: "all" -- лица, фирмы, места (связный текст); "per" -- только лица (распознанные сканы и бланки:
     на шуме распознавания модель принимает обычные слова за фирмы и места)."""
     level = level or LEVEL
-    text = vorbereiten(text)
+    text = vorbereiten(text, HOMOGLYPH_LOG)
     mapping, counters = {}, {}
     label = {"PER": "Person", "ORG": "Firma", "LOC": "Ort", "GPE": "Ort"}
 
@@ -374,7 +646,7 @@ def anonymize(text, level=None, ner="all"):
     # имена из адреса почты (vorname.nachname@...) -- запомнить до удаления адреса
     mail_names = [p for m in re.finditer(r"([\w.+-]+)@", text) for p in re.split(r"[._+-]", m.group(1)) if len(p) > 3 and p.isalpha()]
     out = text
-    # суммы защищаются до правил о номерах (08.10.2026: на имитации дела целые части сумм становились «налоговым номером» и «телефоном»,
+    # суммы защищаются до правил о номерах (08.10.2026: на реальном деле целые части сумм становились «налоговым номером» и «телефоном»,
     # а прибыль и база взноса -- «[Zahl]»): «1.234,56», «615,02», «32.000» остаются как есть на уровне 1
     schutz = []
 
@@ -406,6 +678,7 @@ def anonymize(text, level=None, ner="all"):
     # полная дата с годом до 2010 (или двузначным годом 30–99) без пояснения -- скорее всего дата рождения: оставить только год
     out = re.sub(rf"\b\d{{1,2}}\.\s?(?:\d{{1,2}}\.|{MONTH})\s?(19\d{{2}}|200\d)\b", r"im Jahr \1", out)
     out = re.sub(r"\b\d{1,2}\.\d{1,2}\.([3-9]\d)\b", r"im Jahr 19\1", out)
+    out = geburtsort(out, tag)
     for rx, kind in HARD:
         out = re.sub(rx, lambda m, kind=kind: tag(kind, m.group(0)), out)
     for rx, kind in HARD_LABEL:
@@ -432,12 +705,12 @@ def anonymize(text, level=None, ner="all"):
         out = re.sub(r"\b\d{1,2}\.\d{1,2}\.\d{2}\b", lambda m: tag("Datum", m.group(0)), out)
     # фирма по правовой форме: «Слово(а) + GmbH / OHG / Sp. z o.o. …» -- название убрать, форму оставить
     form = r"(Aktiengesellschaft|Kommanditgesellschaft|Gesellschaft mit beschränkter Haftung|GmbH\s*&\s*Co\.?\s*KG|GmbH|gGmbH|AG|KG|OHG|UG(?:\s*\(haftungsbeschränkt\))?|GbR|e\.\s?K\.|e\.\s?V\.|eG|SE|PartG(?:\s*mbB)?|Sp\.\s?z\s?o\.\s?o\.|B\.\s?V\.|Ltd\.?|S\.\s?A\.|S\.\s?r\.\s?l\.|Inc\.?|LLC)"
-    tok = r"(?!(?:GmbH|gGmbH|AG|KG|OHG|UG|GbR|Co|SE|eG|Aktiengesellschaft)\b)(?:[A-ZÄÖÜ]\.|[A-ZÄÖÜ][\wäöüßÄÖÜ\-]*)"      # «W. Muster GmbH»: инициал с точкой (имитация дела Б 16.10.2026)
+    tok = r"(?!(?:GmbH|gGmbH|AG|KG|OHG|UG|GbR|Co|SE|eG|Aktiengesellschaft)\b)(?:[A-ZÄÖÜ]\.|[A-ZÄÖÜ][\wäöüßÄÖÜ\-]*)"      # «W. Muster GmbH»: инициал с точкой (имитация дела B 16.10.2026)
     for m in list(re.finditer(rf"({tok}(?:\s+(?:{tok}|&|und|\+|mehr)){{0,4}})\s+{form}(?![\w])", out)):
         name_part = re.sub(r"^(?:(?:Die|Der|Das|Den|Dem|Firma|Fa|Bei|Von|Mit|Für|An|Eine|Einer)\s+)+", "", m.group(1))
         if name_part and name_part not in ("Die", "Der", "Das", "Eine", "Firma") and not KEEP.match(name_part.split()[0]) and "[" not in name_part:
             out = out.replace(name_part + " " + m.group(2), tag("Firma", name_part) + " " + m.group(2))
-    # название в кавычках перед правовой формой («ACT-IMPORT» LLC, „Muster“ GmbH) -- имитация дела Б 16.10.2026: правило выше требует заглавную букву в начале
+    # название в кавычках перед правовой формой («MUSTER-IMPORT» LLC, „Muster“ GmbH) -- имитация дела B 16.10.2026: правило выше требует заглавную букву в начале
     for m in list(re.finditer(rf"([«„“\"])([^«»„“”\"\n\[\]]{{2,40}})([»“”\"])\s*{form}(?![\w])", out)):
         out = out.replace(m.group(0), tag("Firma", m.group(1) + m.group(2) + m.group(3)) + " " + m.group(4))
     # (2) NER
@@ -451,9 +724,9 @@ def anonymize(text, level=None, ner="all"):
     _maske = _zellen(out)
     for ent in _nlp()(_maske).ents:
         t = out[ent.start_char:ent.end_char].strip()
-        if "\n" in _maske[ent.start_char:ent.end_char].strip() or (ent.label_ == "ORG" and " " not in t and _de_wort(t)):     # через ячейки таблицы; одно обычное слово («Leasing», «Name») -- не имя (имитация дела Б 16.10.2026)
+        if "\n" in _maske[ent.start_char:ent.end_char].strip() or (ent.label_ == "ORG" and " " not in t and _de_wort(t)):     # через ячейки таблицы; одно обычное слово («Leasing», «Name») -- не имя (имитация дела B 16.10.2026)
             continue
-        if ent.label_ not in label or len(t) <= 2 or KEEP.match(t) or "[" in t or "]" in t:
+        if ent.label_ not in label or len(t) <= 2 or KEEP.match(t) or all(w.strip(",.;:()") in FACHWORT for w in t.split()) or "[" in t or "]" in t:
             continue
         if _KYR.search(t) or any(a <= ent.start_char < b for a, b in fremd):
             continue
@@ -502,9 +775,10 @@ def anonymize(text, level=None, ner="all"):
             part = part.strip(",.;:()")
             if len(part) > 3 and part[0].isupper() and not KEEP.match(part) and not re.fullmatch(r"(Bäckerei|Autohaus|Praxis|Friseursalon|Ristorante|"
                                                                                                 r"Consulting|Logistik|Haustechnik|Immobilienverwaltung|Söhne|Bau)", part) \
-                    and not (ph.startswith(("[Firma", "[Ort")) and _de_wort(part)):     # обычное слово из названия фирмы («Leasing» из «VW Leasing») -- не по всему тексту (имитация дела Б 16.10.2026); у лиц фамилия-слово закрывается по-прежнему
+                    and not (ph.startswith(("[Firma", "[Ort")) and _de_wort(part)):     # обычное слово из названия фирмы («Leasing» из «VW Leasing») -- не по всему тексту (имитация дела B 16.10.2026); у лиц фамилия-слово закрывается по-прежнему
                 out = re.sub(rf"(?<!\[)\b{re.escape(part)}(?:s|'s|’s)?\b(?! [A-Z0-9]+\])", ph, out)
                 out = re.sub(rf"(?<!\[)\b{re.escape(part.upper())}(?:S)?\b(?! [A-Z0-9]+\])", ph, out) if ph.startswith("[Person") and len(part) > 3 else out   # 19.10: «HABERMEHL»
+    out = _luecken_31_10(out, tag, mapping)
     # 19.10.2026 (атаки, «одна маска = одно лицо»): если распознавание имён раньше дало части имени лица другую метку
     # («der Mandant HABERMEHL» -> [Ort A]), эта метка заменяется меткой лица; значение остаётся в таблице под служебным ключом для контроля
     teile = {}
@@ -522,8 +796,8 @@ def anonymize(text, level=None, ner="all"):
     if level == 1:                               # минимум: суммы и даты остаются, длинные номера без пояснения -- нет
         for m in reversed(list(re.finditer(r"(?<![\w\[.,])(?<!\d[.,] )\d(?:\d|[ /-]{1,3}(?=\d))*\d(?![\w]|,\d|\.\d)", out))):
             t = m.group(0)
-            # год и час в строке письма («2. Dezember 2024 10:41», «Gesendet: … 2024 10:41»): дата, а не длинный номер (имитация дела А 12.10.2026: год терялся в 28 письмах)
-            if re.fullmatch(r"(?:19|20)\d{2}-(?:0[1-9]|1[0-2])", t):      # месяц «2022-10» -- период, не номер (имитация дела Б 16.10.2026)
+            # год и час в строке письма («2. Dezember 2024 10:41», «Gesendet: … 2024 10:41»): дата, а не длинный номер (стенд на имитации C 12.10.2026: год терялся в 28 письмах)
+            if re.fullmatch(r"(?:19|20)\d{2}-(?:0[1-9]|1[0-2])", t):      # месяц «2022-10» -- период, не номер (имитация дела B 16.10.2026)
                 continue
             if re.fullmatch(r"(?:19|20)\d{2} {1,2}\d{1,2}", t) and re.match(r"[:.]\d{2}", out[m.end():m.end() + 3]):
                 continue
@@ -620,7 +894,7 @@ _DE_WORT = []
 
 
 def _gemeinwort_im_text(p, text):
-    """Часть ложного «имени» («B. Lohn», «Schreiben Mustermann») -- обычное слово, а не остаток имени (имитация дела А 12.10.2026: 15 остановок контроля
+    """Часть ложного «имени» («B. Lohn», «Schreiben Mustermann») -- обычное слово, а не остаток имени (стенд на имитации C 12.10.2026: 15 остановок контроля
     на словах «Lohn», «Krankengeld», «Satz»). Условия все сразу: слово есть в словаре базы права; в тексте нигде не стоит после «Herr/Frau/Familie»;
     там, где оно стоит отдельно, немецкая модель видит нарицательное, а не имя собственное (до восьми мест); там, где оно начало более длинного
     слова, это слово тоже словарное («Kreditinstitut»). Иначе -- остаток, контроль останавливает."""
@@ -646,6 +920,68 @@ def _gemeinwort_im_text(p, text):
     return True
 
 
+def _wort_bekannt(tok):
+    """Целое слово -- обычное слово языка: немецкое из словаря базы права или русское, известное словарю не как имя/фамилия."""
+    if re.fullmatch(r"[A-Za-zÄÖÜäöüß]+", tok):
+        return _de_wort(tok) or _de_kompositum(tok)
+    if re.fullmatch(r"[А-Яа-яЁё]+", tok):
+        global _MORPH
+        if _MORPH is None:
+            try:
+                import pymorphy3
+                _MORPH = pymorphy3.MorphAnalyzer()
+            except Exception:
+                _MORPH = False
+        if _MORPH:
+            ps = [x for x in _MORPH.parse(tok.casefold()) if x.is_known]
+            return bool(ps) and not any(g in x.tag for x in ps for g in ("Name", "Surn", "Patr"))
+    return False
+
+
+def _de_kompositum(w):
+    """Немецкое сложное слово из двух слов словаря, в том числе с соединительным «s» и оборванным распознаванием концом
+    («Veranstaltungs|charakter», «Veranlagungs|zeitr»: вторая часть -- начало слова словаря от четырёх букв)."""
+    import bisect
+    wl = w.casefold()
+    if len(wl) < 9 or not re.fullmatch(r"[a-zäöüß]+", wl):
+        return False
+    if not _DE_WORT:
+        _de_wort("x")
+    if not hasattr(_de_kompositum, "sl"):
+        _de_kompositum.sl = sorted(_DE_WORT[0])
+    sl = _de_kompositum.sl
+
+    def anfang(b):
+        i = bisect.bisect_left(sl, b)
+        return i < len(sl) and sl[i].startswith(b)
+    for i in range(4, len(wl) - 3):
+        a, b = wl[:i], wl[i:]
+        if _de_wort(a) or (a.endswith("s") and _de_wort(a[:-1])) or ("graf" in a and _de_wort(a.replace("graf", "graph"))):     # Choreografie = Choreographie
+            if _de_wort(b) or (len(b) >= 4 and anfang(b)):
+                return True
+    return False
+
+
+def _gemein_kontext(p, text):
+    """31.10.2026, итерация 3: часть ложного «имени» («Araup Senior») -- слово словаря, которое в этом же тексте стоит со строчной буквы
+    или частью составного через дефис («Senior-innen»): обычное слово. Имя из списков (LAT_VORNAMEN, DE_NACHNAMEN) так не снимается."""
+    p = p.strip(".,;:()")
+    if not re.fullmatch(r"[A-ZÄÖÜ][a-zäöüß]{3,}", p) or p in LAT_VORNAMEN or p in DE_NACHNAMEN or not _de_wort(p):
+        return False
+    return bool(re.search(rf"(?<![\w\[]){re.escape(p.lower())}(?![\w\]])|(?<![\w\[]){re.escape(p)}-[a-zäöü]|-{re.escape(p)}(?![\w\]])", text))
+
+
+def _teil_treffer(p, text):
+    """Часть имени лица стоит в тексте: отдельным словом или началом слова («Habermehls», «Мустерманной»). 31.10.2026, итерация 3:
+    начало слова, которое целиком -- обычное слово («Vera» в «Veranstaltung», «Верн» в «вернула»), остатком не считается."""
+    if not p[:1].isupper():
+        return bool(re.search(rf"\b{re.escape(p)}(?![a-zäöüß])", text))
+    for m in re.finditer(rf"\b{re.escape(p)}([\w]*)", text):
+        if not m.group(1) or not _wort_bekannt(m.group(0)):
+            return True
+    return False
+
+
 def guard(text, mapping, level=None):
     """Контроль исходящего текста: ничего из таблицы соответствия и никаких данных жёсткого формата. Возвращает нарушения."""
     # 19.10.2026: невидимые знаки внутри слова и слова из смеси латиницы с кириллицей в исходящем тексте -- сами по себе нарушение
@@ -654,16 +990,19 @@ def guard(text, mapping, level=None):
               (["слово из смеси латиницы и кириллицы"] if re.search(r"[A-Za-z][\u0400-\u04ff]|[\u0400-\u04ff][A-Za-z]", text) else [])
     text = vorbereiten(text)
     low = text.lower()
-    mapping = {k: (v.strip() if isinstance(v, str) else v) for k, v in mapping.items()}      # значение с пробелом по краям не совпадало с текстом (BIC в начале строки, 08.10.2026)
+    mapping = {k: (v.strip() if isinstance(v, str) else v) for k, v in mapping.items()}
+    mapping = {k: v for k, v in mapping.items() if not (isinstance(v, str) and v and all(w in FACHWORT for w in v.split()))}   # 31.10: Spagat, Pirouette …      # значение с пробелом по краям не совпадало с текстом (BIC в начале строки, 08.10.2026)
     bad = [v for k, v in mapping.items() if not k.startswith("rund") and len(v) > 3 and not (" " not in v.strip() and KEEP.match(v.strip())) and
            (re.search(rf"(?<![\wäöüÄÖÜß\[]){re.escape(v.strip())}(?![\wäöüÄÖÜß\]])", text, 0 if any(len(w) < 3 for w in v.split()) else re.I) if " " in v.strip()     # 17.10, имитация дела А: «A Ba» не в «da balance» и (короткие части -- с учётом регистра) не в «nach a ba»
             else re.search(rf"(?<![\wäöüÄÖÜß\[]){re.escape(v.strip())}(?![\wäöüÄÖÜß\]])", text))]
-    # номера (шесть цифр и больше) ищутся и вплотную к буквам: распознавание склеивает «KVNR» с номером (имитация дела А 08.10.2026)
+    # номера (шесть цифр и больше) ищутся и вплотную к буквам: распознавание склеивает «KVNR» с номером (остаток Салона 08.10.2026)
     bad += [v for k, v in mapping.items() if not k.startswith(("rund", "[Zahl", "[Betrag", "[Datum")) and " " not in v.strip() and len(v.strip()) >= 7
             and sum(c.isdigit() for c in v) >= 6 and v not in bad and v.strip().lower() in low]
     for k, v in mapping.items():                       # отдельные части имён
         if k.startswith("[Person"):
-            bad += [p for p in v.split() if len(p) > 3 and not KEEP.match(p) and re.search(rf"\b{re.escape(p)}" + ("" if p[:1].isupper() else r"(?![a-zäöüß])"), text) and not _gemeinwort_im_text(p, text)]   # обычное слово в ложном «имени» -- не остаток; строчная часть («anna») -- только отдельным словом, не в «annahme» (17.10)
+            # 31.10.2026, итерация 3: термины гимнастики (FACHWORT) не считались остатком только как целое значение; часть ложного «имени»
+            # («B. Spagat», «Li Keule») останавливала контроль -- теперь и часть
+            bad += [p for p in v.split() if len(p) > 3 and not KEEP.match(p) and p.strip(".,;:()") not in FACHWORT and _teil_treffer(p, text) and not _gemeinwort_im_text(p, text) and not _gemein_kontext(p, text)]   # обычное слово в ложном «имени» -- не остаток; строчная часть («anna») -- только отдельным словом, не в «annahme» (17.10)
     for rx, kind in HARD_LABEL:                      # 19.10.2026
         if any("[" not in m_.group(2) for m_ in re.finditer(rx, text)):
             bad.append(kind)
@@ -691,7 +1030,7 @@ def guard(text, mapping, level=None):
 
 
 _ABK = r"(?:Gesch|Verb|Ford|Aufw|Abschr|Sonst|Betr|Rückst|Umsatzst|Vorst|Verr|Kto|Nr|Abs|Art|Buchst|bzw|ggf|inkl|zzgl|evtl|Tel|Str|Steuerber|Buchf|Verw|Vers|Beitr|Abr|lfd|usw|Dipl|Dr|Prof|St|Kfz|Betriebs|Rechts|Lohn|Geh)"
-MERKMALE = [   # вторая ступень контроля, независимая от списка замен: признаки персональных данных в готовом тексте (имитация дела А 09.10.2026)
+MERKMALE = [   # вторая ступень контроля, независимая от списка замен: признаки персональных данных в готовом тексте (предложение Салона 09.10.2026)
     ("обращение + слово без метки", r"\b(?:Herrn?|Frau)\s+(?!\[)([A-ZÄÖÜ][a-zäöüß]{2,})"),
     ("буквы вплотную к метке лица", r"\[(?:Mandant|Mandantin|Person|Ehegatte)[^\]]*\][a-zäöüßа-яё]{1,8}\b"),
     ("слово.слово (учётная запись?)", rf"(?<![\w@/.])(?!{_ABK}\.)[A-Za-zÄÖÜäöüß]{{3,}}\.[a-zäöüß]{{5,}}(?![\w.])"),
@@ -704,13 +1043,25 @@ MERKMALE = [   # вторая ступень контроля, независи�
 ]
 
 
+def _merkmal_ocr_wort(name, m_):
+    """31.10.2026, итерация 4: «слово.слово» из распознанной буквы «ü» («Buchfi.ihrung», «fi.ir» = «Buchführung», «für»): ложная тревога,
+    если после замены «i.i»/«i.» на «ü» получилось немецкое слово. Иначе признак остаётся."""
+    if not name.startswith("слово.слово"):
+        return False
+    w = m_.group(0)
+    for a in ("i.i", "i.", ".i"):
+        if a in w and _dt_wort(w.replace(a, "ü", 1)):
+            return True
+    return False
+
+
 def merkmale(text):
     """-> {признак: число мест}. Значений не возвращает. Обычные слова после «Herr/Frau» (роли, KEEP) не считаются."""
     out = {}
     for name, rx in MERKMALE:
         n = 0
         for m_ in re.finditer(rx, text):
-            if name.startswith("обращение") and KEEP.match(m_.group(1)):
+            if name.startswith("обращение") and KEEP.match(m_.group(1)) or _merkmal_ocr_wort(name, m_):
                 continue
             n += 1
         if n:
@@ -723,7 +1074,7 @@ def merkmale_orte(text):
     out = []
     for name, rx in MERKMALE:
         for m_ in re.finditer(rx, text):
-            if name.startswith("обращение") and KEEP.match(m_.group(1)):
+            if name.startswith("обращение") and KEEP.match(m_.group(1)) or _merkmal_ocr_wort(name, m_):
                 continue
             kopf = re.findall(r"(?m)^## Dokument (\d+)", text[:m_.start()])
             teil = text[text.rfind("## Dokument", 0, m_.start()) if "## Dokument" in text[:m_.start()] else 0: m_.start()]
@@ -771,7 +1122,7 @@ def review(anon, mapping, level=None):
     except Exception:
         ents = []
     legal = legal_ner_hints(anon)
-    # род занятий (решение автора 11.10.2026: пока только помечать проверяющему; замена -- на отрасль: «сфера услуг», «пищевая промышленность»…):
+    # род занятий (решение владельца проекта 11.10.2026: пока только помечать проверяющему; замена -- на отрасль: «сфера услуг», «пищевая промышленность»…):
     # занятие вместе с городом сужает круг лиц (слепой опыт 11.10.2026), метками это не закрывается
     BERUF = re.compile(r"(?i)\b(tätig(?:keit)? als|arbeitet als|beschäftigt als|selbst[äa]ndige?r? \w+|freiberuflich\w* \w+|beruf(?:sbezeichnung)?:|gewerbe:|betreibt (?:ein|eine|einen)|inhaber(?:in)? (?:eines|einer)|"
                        r"\w+(?:trainer|lehrer|berater|meister|händler|friseur|fahrer|pfleger|arzt|ärztin|anwalt|anwältin)(?:in)?\b|работа\w+ (?:как|в качестве)|род занятий|професси\w+|занима\w+ся|"

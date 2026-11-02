@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-pruefe_oeffentlich.py -- проверка папки перед публикацией: нет ли в ней примет имитаций дел, ключей, личных путей и почты.
+pruefe_oeffentlich.py -- проверка папки перед публикацией: нет ли в ней примет настоящих дел, ключей, личных путей и почты.
 
 Только чтение, только локально. В отчёт значения НЕ пишутся -- только файл, строка и вид находки (сам отчёт можно показывать).
 Что ищется:
-  1. запрещённое по списку ~/.config/leckermath/repo_blocklist.txt (ключи, имена из имитаций дел) -- тот же список, что в make_repo.sh;
-  2. значения из ключей обезличивания имитаций дел (mapping_dossier.json): имена, адреса, номера, которые программа сама заменяла масками;
+  1. запрещённое по списку ~/.config/leckermath/repo_blocklist.txt (ключи, имена из настоящих дел) -- тот же список, что в make_repo.sh;
+  2. значения из ключей обезличивания настоящих дел (mapping_dossier.json): имена, адреса, номера, которые программа сама заменяла масками;
      короткие и словарные значения пропускаются, чтобы не было ложных срабатываний на обычные слова;
   3. личные пути (/home/<имя>/, C:\\Users\\<имя>\\) и адреса электронной почты (кроме noreply и примеров);
   4. похожее на ключ доступа (длинные строки после слов key, token, secret; заголовки закрытых ключей).
@@ -22,11 +22,17 @@ TEXT_ENDUNG = {".py", ".md", ".txt", ".sh", ".json", ".jsonl", ".tsv", ".csv", "
 RX_PFAD = re.compile(r"/home/[a-z][\w.-]+/|[A-Z]:\\Users\\[\w.-]+\\")
 RX_MAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 MAIL_OK = re.compile(r"(?i)noreply|example\.|beispiel|muster|test@|@users\.noreply")
+# 31.10.2026 (Main): имя автора в коде и комментариях -- находка, останавливающая публикацию. В .md/.txt разрешена только строка
+# авторства («Autor:», «Author:», «©», «Copyright»). Намеренные выдуманные имена в тестах -- пометка «namen-ok» в той же строке.
+RX_NAME = re.compile(r"(?i)\bSerge[ij]\b|\bSevriuk|\bSewrjuk|Серге(?:й|я|ю|ем|е)\b|Севрюк")   # namen-ok
+NAME_OK_ZEILE = re.compile(r"(?i)^\W*(?:autor|author|verfasser|автор)\b|©|copyright|namen-ok|\"creators\"")   # 31.10: .zenodo.json — авторство по устройству
+RX_KONTO = re.compile(r"(?i)(?:github\.com|huggingface\.co(?:/datasets)?)/sevriukov\b")   # 31.10: ссылка на учётную запись публикации — по устройству (namen-ok)
+CODE_ENDUNG = {".py", ".sh", ".sql", ".json", ".jsonl", ".tsv", ".csv", ".yml", ".yaml", ".toml", ".cfg", ".ini", ""}
 RX_KEY = re.compile(r"(?i)(?:api[_-]?key|token|secret|passwor[dt])\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{24,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-[A-Za-z0-9]{20,}|\bhf_[A-Za-z0-9]{20,}|\bAIza[0-9A-Za-z_\-]{30,}")
 
 
 def fall_werte(faelle):
-    """Значения имитаций дел. Два уровня: твёрдые -- подтверждённые лица и организации (реестр figuranten.json с отметкой «sicher»,
+    """Значения настоящих дел. Два уровня: твёрдые -- подтверждённые лица и организации (реестр figuranten.json с отметкой «sicher»,
     состав, заданный аудитором) и длинные номера из ключа; мягкие -- прочие значения ключа обезличивания (среди них много обычных слов,
     принятых программой за имена: проверка 09.10.2026 дала 18 таких значений в собственном коде). Значения в отчёт не идут.
     -> (твёрдые шаблоны, мягкие шаблоны)"""
@@ -65,8 +71,11 @@ def fall_werte(faelle):
     import gzip
     wl = Path(__file__).resolve().parent / "de_wortliste_gesetz.txt.gz"
     gesetz = {w.lower() for w in gzip.open(wl, "rt", encoding="utf-8").read().split("\n")} if wl.exists() else set()
-    gemein = {v for v in hart if " " not in v and (v.lower() in gesetz or v.lower() in {"якорь", "человек", "выгрузка"})}
-    hart = hart - gemein - {"Sergei Sevriukov"}
+    gemein = {v for v in hart if " " not in v and (v.lower() in gesetz or v.lower() in {"якорь", "человек", "выгрузка", "аудит", "кредит", "личное"})}
+    # 31.10 (разбор gateway v0.2.0): совпадения с ключами дел, проверенные вручную как общие слова, фирмы и учреждения, заголовки столбцов
+    # и выдуманные имена тестов -- не участники дел (namen-ok)
+    oeffentlich = {"секретарь", "item name", "google", "google workspace", "chatgpt subscription", "lidl sagt danke", "sparkasse dortmund", "ольга"}
+    hart = {v for v in hart if v.lower() not in oeffentlich} - gemein - {"Sergei Sevriukov"}   # namen-ok
     weich |= gemein
     weich -= hart
     rx = lambda vs: [re.compile(r"(?<!\w)" + re.escape(v) + r"(?!\w)", re.I) for v in sorted(vs, key=len, reverse=True)]     # noqa: E731
@@ -95,11 +104,13 @@ def pruefe(ordner, faelle=()):
             if any(b.search(z) for b in block):
                 funde.append(("запрещённое по списку", rel, k))
             if werte and any(w.search(z) for w in werte):
-                funde.append(("значение из ключа имитации дела", rel, k))
+                funde.append(("значение из ключа настоящего дела", rel, k))
             elif weich and any(w.search(z) for w in weich):
                 funde.append(("возможно: слово из ключа дела (чаще обычное слово, просмотреть)", rel, k))
             if RX_KEY.search(z):
                 funde.append(("похоже на ключ доступа", rel, k))
+            if RX_NAME.search(RX_KONTO.sub("", z)) and (f.suffix.lower() in CODE_ENDUNG or not NAME_OK_ZEILE.search(z)) and "namen-ok" not in z and "\"creators\"" not in z:
+                funde.append(("имя автора в коде или тексте", rel, k))
             if RX_PFAD.search(z):
                 funde.append(("личный путь", rel, k))
             if any(not MAIL_OK.search(m) for m in RX_MAIL.findall(z)):
@@ -112,12 +123,12 @@ def main():
     faelle = [arg[k + 1] for k, a in enumerate(arg) if a == "--fall"]
     out = Path(arg[arg.index("--out") + 1]).expanduser() if "--out" in arg else None
     funde, n_dat, n_bl, n_w = pruefe(arg[0], faelle)
-    hart = [f for f in funde if f[0] in ("запрещённое по списку", "значение из ключа имитации дела", "похоже на ключ доступа")]
+    hart = [f for f in funde if f[0] in ("запрещённое по списку", "значение из ключа настоящего дела", "похоже на ключ доступа", "имя автора в коде или тексте")]
     L = [f"# Проверка папки перед публикацией: {Path(arg[0]).name}", "",
-         f"Файлов прочитано: {n_dat}. Шаблонов запрещённого: {n_bl}. Значений из ключей имитаций дел: {n_w} (дел: {len(faelle)}).",
+         f"Файлов прочитано: {n_dat}. Шаблонов запрещённого: {n_bl}. Значений из ключей настоящих дел: {n_w} (дел: {len(faelle)}).",
          f"Находок, останавливающих публикацию: {len(hart)}. Предупреждений (возможные слова из ключа, личные пути, почта): {len(funde) - len(hart)}.",
          "Значения в отчёт не пишутся -- только место.", ""]
-    for art in ("запрещённое по списку", "значение из ключа имитации дела", "похоже на ключ доступа", "возможно: слово из ключа дела (чаще обычное слово, просмотреть)", "личный путь", "адрес почты"):
+    for art in ("запрещённое по списку", "значение из ключа настоящего дела", "похоже на ключ доступа", "имя автора в коде или тексте", "возможно: слово из ключа дела (чаще обычное слово, просмотреть)", "личный путь", "адрес почты"):
         orte = [(d, k) for a, d, k in funde if a == art]
         if orte:
             dateien = {}
